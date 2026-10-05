@@ -5,14 +5,14 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { toast, useSpace } from '@shared'
 import {
-  addCategoria, deleteMany, spaceIcon, spaceLabel, transferMovimenti, updateMany, useData,
+  addCategoria, assignPrincipale, deleteMany, spaceIcon, spaceLabel, tipoOf, transferMovimenti, updateMany, useData,
 } from '../store.js'
 import { inRange, fmtShortDate, rangeLabel } from '../lib/period.js'
 import { fmtMoney } from '../lib/money.js'
 import MovRow from '../components/MovRow.vue'
 
 const { spaceId, canWrite } = useSpace()
-const { state, movimenti, principali, secondarie, writableSpaces, catById, range, span, anchor, load } = useData()
+const { state, movimenti, catUscita, catEntrata, secondarie, writableSpaces, catById, range, span, anchor, load } = useData()
 onMounted(load)
 
 const q = ref('')
@@ -78,12 +78,15 @@ const setSub = ref('')
 const moveTo = ref('')
 const otherSpaces = computed(() => writableSpaces.value.filter((s) => s.id !== spaceId.value))
 
-async function resolve(value, livello) {
+async function resolve(value, gruppo) {
   if (value !== '__new') return value || null
-  const nome = prompt(livello === 'principale' ? 'Nome della nuova categoria' : 'Nome della nuova categoria secondaria')?.trim()
+  const nome = prompt('Nome della nuova categoria secondaria')?.trim()
   if (!nome) return undefined
-  return addCategoria(nome, livello)
+  return addCategoria(nome, gruppo)
 }
+// Tipi presenti nella selezione: la categoria principale si sceglie tra quelle del tipo giusto.
+const selTipi = computed(() => new Set(selRows.value.map((m) => tipoOf(m.importo))))
+const mixed = computed(() => selTipi.value.size > 1)
 
 async function run(fn, done) {
   if (!selected.value.size || busy.value) return
@@ -99,11 +102,16 @@ async function run(fn, done) {
   }
 }
 
+/** setCat contiene il nome della categoria: uscite ed entrate ricevono quella del proprio tipo. */
 async function applyCat() {
-  const id = await resolve(setCat.value, 'principale')
-  if (id === undefined) return
+  let nome = setCat.value
+  if (nome === '__new') {
+    nome = prompt(mixed.value ? 'Nome della nuova categoria (creata sia tra le uscite sia tra le entrate)' : 'Nome della nuova categoria')?.trim()
+    if (!nome) return
+  }
+  if (nome === '__none') nome = ''
   const n = selected.value.size
-  await run(() => updateMany([...selected.value], { categoria_id: id }), `Categoria ${id ? `«${catById.value.get(id)?.nome}»` : 'rimossa'} su ${n} movimenti`)
+  await run(() => assignPrincipale(selRows.value, nome), `Categoria ${nome ? `«${nome}»` : 'rimossa'} su ${n} movimenti`)
   setCat.value = ''
 }
 async function applySub() {
@@ -143,7 +151,12 @@ async function remove() {
         <select v-model="fCat" class="select" aria-label="Categoria principale">
           <option value="">Ogni categoria</option>
           <option value="none">Senza categoria</option>
-          <option v-for="c in principali" :key="c.id" :value="c.id">{{ c.nome }}</option>
+          <optgroup v-if="catUscita.length" label="Uscite">
+            <option v-for="c in catUscita" :key="c.id" :value="c.id">{{ c.nome }}</option>
+          </optgroup>
+          <optgroup v-if="catEntrata.length" label="Entrate">
+            <option v-for="c in catEntrata" :key="c.id" :value="c.id">{{ c.nome }}</option>
+          </optgroup>
         </select>
         <select v-model="fSub" class="select" aria-label="Categoria secondaria">
           <option value="">Ogni secondaria</option>
@@ -190,12 +203,21 @@ async function remove() {
       </div>
       <div class="act">
         <select v-model="setCat" class="select" aria-label="Nuova categoria principale">
-          <option value="" disabled>Categoria principale…</option>
-          <option v-for="c in principali" :key="c.id" :value="c.id">{{ c.nome }}</option>
+          <option value="" disabled>Categoria {{ mixed ? 'principale' : selTipi.has('entrata') ? 'di entrata' : 'di uscita' }}…</option>
+          <optgroup v-if="selTipi.has('uscita') && catUscita.length" :label="mixed ? 'Uscite' : 'Categorie di uscita'">
+            <option v-for="c in catUscita" :key="c.id" :value="c.nome">{{ c.nome }}</option>
+          </optgroup>
+          <optgroup v-if="selTipi.has('entrata') && catEntrata.length" :label="mixed ? 'Entrate' : 'Categorie di entrata'">
+            <option v-for="c in catEntrata" :key="'e' + c.id" :value="c.nome">{{ c.nome }}</option>
+          </optgroup>
           <option value="__new">＋ Nuova categoria…</option>
+          <option value="__none">— Rimuovi categoria</option>
         </select>
         <button class="btn btn-primary btn-sm" :disabled="!setCat || busy" @click="applyCat">Applica</button>
       </div>
+      <p v-if="mixed" class="muted small" style="margin: 0">
+        Selezione con uscite ed entrate: ognuna riceve la categoria del proprio tipo con quel nome (creata se manca).
+      </p>
       <div class="act">
         <select v-model="setSub" class="select" aria-label="Nuova categoria secondaria">
           <option value="" disabled>Categoria secondaria…</option>

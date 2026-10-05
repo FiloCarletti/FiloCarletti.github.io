@@ -2,12 +2,12 @@
 // Wrapper minimo per Chart.js: ricrea il grafico quando cambiano dati o tema.
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  Chart, BarController, LineController, BarElement, LineElement, PointElement,
+  Chart, BarController, LineController, DoughnutController, PieController, BarElement, LineElement, PointElement, ArcElement,
   CategoryScale, LinearScale, Tooltip, Legend, Filler,
 } from 'chart.js'
 import { cssVar, isDark } from '../lib/theme.js'
 
-Chart.register(BarController, LineController, BarElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend, Filler)
+Chart.register(BarController, LineController, DoughnutController, PieController, BarElement, LineElement, PointElement, ArcElement, CategoryScale, LinearScale, Tooltip, Legend, Filler)
 
 const props = defineProps({
   type: { type: String, default: 'bar' },
@@ -62,6 +62,12 @@ function render() {
       line: { borderWidth: 2, tension: 0.25 },
       point: { radius: 4, hoverRadius: 6, borderWidth: 2, borderColor: surface },
     },
+  }
+  if (props.type === 'doughnut' || props.type === 'pie') {
+    // Torte: niente assi; spicchi separati da un filo del colore di fondo.
+    delete base.scales
+    base.interaction = { mode: 'nearest', intersect: true }
+    base.elements.arc = { borderColor: surface, borderWidth: 2, hoverOffset: 6 }
   }
   chart = new Chart(canvas.value, {
     type: props.type,

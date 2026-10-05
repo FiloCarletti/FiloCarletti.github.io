@@ -4,7 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, unwrap, toast, useSpace } from '@shared'
 import { T } from '../db.js'
-import { categorieOf, ensureCategorie, insertMovimenti, lookupCat, spaceIcon, spaceLabel, useData } from '../store.js'
+import { categorieOf, ensureCategorie, groupOf, insertMovimenti, lookupCat, spaceIcon, spaceLabel, tipoOf, useData } from '../store.js'
 import { dupKey, readMovimenti } from '../lib/csv.js'
 import { fmtShortDate } from '../lib/period.js'
 import { fmtMoney } from '../lib/money.js'
@@ -88,11 +88,14 @@ const summary = computed(() => {
   }
   return { entrate, uscite, min, max }
 })
+// La categoria del CSV diventa di uscita o di entrata secondo il segno dell'importo.
 const newCats = computed(() => {
-  const have = new Set(targetCats.value.filter((c) => c.livello === 'principale').map((c) => c.nome.toLowerCase()))
+  const key = (tipo, nome) => `${tipo}|${nome.toLowerCase()}`
+  const have = new Set(targetCats.value.filter((c) => c.livello === 'principale').map((c) => key(groupOf(c), c.nome)))
   const out = new Map()
   for (const r of toImport.value) {
-    if (r.categoria && !have.has(r.categoria.toLowerCase())) out.set(r.categoria.toLowerCase(), r.categoria)
+    const k = r.categoria && key(tipoOf(r.importo), r.categoria)
+    if (k && !have.has(k)) out.set(k, `${r.categoria} (${tipoOf(r.importo)})`)
   }
   return [...out.values()]
 })
@@ -106,10 +109,10 @@ async function run() {
   progress.value = 0
   try {
     const sid = target.value
-    const map = await ensureCategorie(sid, toImport.value.map((r) => ({ livello: 'principale', nome: r.categoria })))
+    const map = await ensureCategorie(sid, toImport.value.map((r) => ({ gruppo: tipoOf(r.importo), nome: r.categoria })))
     const payload = toImport.value.map((r) => ({
       data: r.data, conto: r.conto, importo: r.importo, valuta: r.valuta, descrizione: r.descrizione,
-      categoria_id: lookupCat(map, 'principale', r.categoria),
+      categoria_id: lookupCat(map, tipoOf(r.importo), r.categoria),
     }))
     await insertMovimenti(sid, payload, (n) => { progress.value = n })
     toast.ok(`${payload.length} movimenti importati in «${spaceLabel(targetSpace.value)}»`)

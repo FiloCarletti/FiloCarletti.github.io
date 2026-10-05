@@ -143,3 +143,22 @@ export const fmtDayHeader = (iso) => {
 }
 export const fmtShortDate = (iso) => fDayShort.format(parseISO(iso)) + (iso.slice(0, 4) !== today().slice(0, 4) ? ` ${iso.slice(2, 4)}` : '')
 export const monthShort = (iso) => fMonthShort.format(parseISO(iso))
+
+/**
+ * Gruppo "relativo" di una data per l'elenco movimenti: In programma, Oggi, Ieri, Questa settimana,
+ * Settimana scorsa, Questo mese, Mese scorso, poi mese per mese ("Agosto", "Agosto 2025").
+ */
+export function relativeBucket(iso, t = today()) {
+  if (iso > t) return { key: 'future', label: 'In programma' }
+  if (iso === t) return { key: 'today', label: 'Oggi', single: true }
+  if (iso === addDays(t, -1)) return { key: 'yesterday', label: 'Ieri', single: true }
+  const ws = weekStart(t)
+  if (iso >= ws) return { key: 'week', label: 'Questa settimana' }
+  if (iso >= addDays(ws, -7)) return { key: 'lastweek', label: 'Settimana scorsa' }
+  const ms = t.slice(0, 7) + '-01'
+  if (iso >= ms) return { key: 'month', label: 'Questo mese' }
+  if (iso >= addMonths(ms, -1)) return { key: 'lastmonth', label: 'Mese scorso' }
+  const m = iso.slice(0, 7)
+  const name = cap(fMonth.format(parseISO(m + '-01')))
+  return { key: m, label: iso.slice(0, 4) === t.slice(0, 4) ? name.replace(/\s\d{4}$/, '') : name }
+}

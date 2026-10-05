@@ -5,7 +5,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { toast, useSpace } from '@shared'
 import {
-  categorieOf, closeEditor, deleteMany, ensureCategorie, insertMovimenti, lookupCat, pref, savePref,
+  categorieOf, closeEditor, deleteMany, ensureCategorie, groupOf, insertMovimenti, lookupCat, pref, savePref,
   spaceIcon, spaceLabel, updateMovimento, useData,
 } from '../store.js'
 import { addDays, today } from '../lib/period.js'
@@ -43,13 +43,15 @@ watch(target, async (sid) => {
 }, { immediate: true })
 
 const sameSpace = computed(() => target.value === spaceId.value)
-function sorted(livello) {
-  const list = targetCats.value.filter((c) => c.livello === livello)
+const tipo = computed(() => (segno.value < 0 ? 'uscita' : 'entrata'))
+function sorted(gruppo) {
+  const list = targetCats.value.filter((c) => groupOf(c) === gruppo)
   const key = segno.value < 0 ? 'neg' : 'pos'
   const score = (c) => (sameSpace.value ? usage.value.get(c.id)?.[key] ?? 0 : 0)
   return [...list].sort((a, b) => score(b) - score(a) || a.nome.localeCompare(b.nome, 'it'))
 }
-const principali = computed(() => sorted('principale'))
+// Solo le categorie del tipo giusto: di uscita per le spese, di entrata per le entrate.
+const principali = computed(() => sorted(tipo.value))
 const secondarie = computed(() => sorted('secondaria'))
 const VISIBLE = 8
 const shownCats = computed(() => {
@@ -66,6 +68,10 @@ const willCreate = computed(() => [
   subNome.value && !secondarie.value.some((c) => c.nome.toLowerCase() === subNome.value.toLowerCase()) && subNome.value,
 ].filter(Boolean))
 const colorOf = (c) => catColor(c)
+// Cambiando uscita/entrata la categoria resta solo se esiste anche nell'altro tipo.
+watch(segno, () => {
+  if (catNome.value && !principali.value.some((c) => c.nome.toLowerCase() === catNome.value.toLowerCase())) catNome.value = ''
+})
 
 function pickCat(nome) { catNome.value = catNome.value === nome ? '' : nome }
 function pickSub(nome) { subNome.value = subNome.value === nome ? '' : nome }
@@ -98,7 +104,7 @@ const descrizioni = computed(() => {
 function onDescrizione() {
   const d = descrizione.value.trim().toLowerCase()
   if (!d || catNome.value) return
-  const prev = movimenti.value.find((x) => x.descrizione?.toLowerCase() === d)
+  const prev = movimenti.value.find((x) => x.descrizione?.toLowerCase() === d && Math.sign(x.importo) === segno.value)
   if (!prev) return
   catNome.value = catById.value.get(prev.categoria_id)?.nome ?? ''
   if (!subNome.value) subNome.value = catById.value.get(prev.sottocategoria_id)?.nome ?? ''
@@ -125,8 +131,8 @@ async function save(again = false) {
   busy.value = true
   try {
     const map = await ensureCategorie(target.value, [
-      { livello: 'principale', nome: catNome.value },
-      { livello: 'secondaria', nome: subNome.value },
+      { gruppo: tipo.value, nome: catNome.value },
+      { gruppo: 'secondaria', nome: subNome.value },
     ])
     const payload = {
       data: data.value,
@@ -134,7 +140,7 @@ async function save(again = false) {
       valuta: (valuta.value || 'EUR').toUpperCase(),
       descrizione: descrizione.value.trim(),
       importo: segno.value * Math.abs(amountValue.value),
-      categoria_id: lookupCat(map, 'principale', catNome.value),
+      categoria_id: lookupCat(map, tipo.value, catNome.value),
       sottocategoria_id: lookupCat(map, 'secondaria', subNome.value),
     }
     if (payload.conto) savePref('conto', payload.conto)

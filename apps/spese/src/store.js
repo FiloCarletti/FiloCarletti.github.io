@@ -2,6 +2,9 @@
 // che toccano altri spazi: inserire, importare, spostare o copiare movimenti in uno spazio diverso
 // da quello che si sta guardando. Le categorie appartengono allo spazio: tra spazi si abbinano per nome
 // (e si creano se mancano), così il vincolo "categoria dello stesso spazio" del DB è sempre rispettato.
+//
+// Gruppi di categorie: 'uscita' e 'entrata' (principali, separate per segno dell'importo) e
+// 'secondaria' (trasversali, valgono per entrambi).
 import { computed, reactive, ref, watch } from 'vue'
 import { supabase, unwrap, toast, useSpace } from '@shared'
 import { T } from './db.js'
@@ -73,6 +76,8 @@ const movimenti = computed(() => [...state.movimenti].sort(byDateDesc))
 const catById = computed(() => new Map(state.categorie.map((c) => [c.id, c])))
 const byName = (a, b) => a.nome.localeCompare(b.nome, 'it')
 const principali = computed(() => state.categorie.filter((c) => c.livello === 'principale').sort(byName))
+const catUscita = computed(() => principali.value.filter((c) => c.tipo === 'uscita'))
+const catEntrata = computed(() => principali.value.filter((c) => c.tipo === 'entrata'))
 const secondarie = computed(() => state.categorie.filter((c) => c.livello === 'secondaria').sort(byName))
 /** Quante volte è usata ogni categoria, separando uscite ed entrate (per ordinare i bottoni). */
 const usage = computed(() => {
@@ -147,44 +152,50 @@ function cacheCats(sid, rows) {
   else if (otherCats.has(sid)) otherCats.get(sid).push(...rows)
 }
 
-const catKey = (livello, nome) => `${livello}|${nome.trim().toLowerCase()}`
+export const GRUPPI = ['uscita', 'entrata', 'secondaria']
+/** Gruppo di una categoria: 'uscita' | 'entrata' | 'secondaria'. */
+export const groupOf = (c) => (c.livello === 'secondaria' ? 'secondaria' : c.tipo)
+/** Tipo di categoria principale adatto a un importo. */
+export const tipoOf = (importo) => (Number(importo) > 0 ? 'entrata' : 'uscita')
+const catKey = (gruppo, nome) => `${gruppo}|${nome.trim().toLowerCase()}`
 /**
- * Garantisce che nello spazio `sid` esistano le categorie richieste ({ nome, livello, colore? })
- * e restituisce una Map "livello|nome" → id. Crea quelle mancanti.
+ * Garantisce che nello spazio `sid` esistano le categorie richieste ({ gruppo, nome, colore? })
+ * e restituisce una Map "gruppo|nome" → id. Crea quelle mancanti, con colori non ancora usati nel gruppo.
  */
 export async function ensureCategorie(sid, wanted) {
   const list = await categorieOf(sid)
-  const map = new Map(list.map((c) => [catKey(c.livello, c.nome), c.id]))
+  const map = new Map(list.map((c) => [catKey(groupOf(c), c.nome), c.id]))
   const missing = new Map()
   for (const w of wanted) {
     const nome = w?.nome?.trim()
     if (!nome) continue
-    const k = catKey(w.livello, nome)
+    const k = catKey(w.gruppo, nome)
     if (!map.has(k) && !missing.has(k)) missing.set(k, w)
   }
   if (missing.size) {
-    const used = list.map((c) => c.colore)
+    const used = Object.fromEntries(GRUPPI.map((g) => [g, list.filter((c) => groupOf(c) === g).map((c) => c.colore)]))
     const rows = [...missing.values()].map((w) => {
-      const colore = w.colore ?? nextColor(used)
-      used.push(colore)
-      return { space_id: sid, livello: w.livello, nome: w.nome.trim(), colore }
+      const colore = w.colore && !used[w.gruppo].includes(w.colore) ? w.colore : nextColor(used[w.gruppo])
+      used[w.gruppo].push(colore)
+      const secondaria = w.gruppo === 'secondaria'
+      return { space_id: sid, livello: secondaria ? 'secondaria' : 'principale', tipo: secondaria ? null : w.gruppo, nome: w.nome.trim(), colore }
     })
     try {
       const created = unwrap(await supabase.from(T.categorie).insert(rows).select('*'))
       cacheCats(sid, created)
-      for (const c of created) map.set(catKey(c.livello, c.nome), c.id)
+      for (const c of created) map.set(catKey(groupOf(c), c.nome), c.id)
     } catch (e) {
       // Creata nel frattempo da qualcun altro (vincolo di unicità): rileggi.
       if (e.code !== '23505') throw e
       const fresh = await fetchAll(T.categorie, sid)
       if (sid === spaceId.value) state.categorie = fresh
       else otherCats.set(sid, fresh)
-      for (const c of fresh) map.set(catKey(c.livello, c.nome), c.id)
+      for (const c of fresh) map.set(catKey(groupOf(c), c.nome), c.id)
     }
   }
   return map
 }
-export const lookupCat = (map, livello, nome) => (nome ? map.get(catKey(livello, nome)) ?? null : null)
+export const lookupCat = (map, gruppo, nome) => (nome ? map.get(catKey(gruppo, nome)) ?? null : null)
 
 /* ---------- scritture ---------- */
 
@@ -237,12 +248,12 @@ export async function deleteMany(ids) {
 export async function transferMovimenti(rows, target, { copy = false } = {}) {
   const name = (id) => catById.value.get(id)?.nome
   const wanted = rows.flatMap((m) => [
-    { livello: 'principale', nome: name(m.categoria_id), colore: catById.value.get(m.categoria_id)?.colore },
-    { livello: 'secondaria', nome: name(m.sottocategoria_id), colore: catById.value.get(m.sottocategoria_id)?.colore },
+    { gruppo: tipoOf(m.importo), nome: name(m.categoria_id), colore: catById.value.get(m.categoria_id)?.colore },
+    { gruppo: 'secondaria', nome: name(m.sottocategoria_id), colore: catById.value.get(m.sottocategoria_id)?.colore },
   ])
   const map = await ensureCategorie(target, wanted)
   const resolve = (m) => ({
-    categoria_id: lookupCat(map, 'principale', name(m.categoria_id)),
+    categoria_id: lookupCat(map, tipoOf(m.importo), name(m.categoria_id)),
     sottocategoria_id: lookupCat(map, 'secondaria', name(m.sottocategoria_id)),
   })
   if (copy) {
@@ -263,9 +274,22 @@ export async function transferMovimenti(rows, target, { copy = false } = {}) {
 
 /* ---------- categorie dello spazio corrente ---------- */
 
-export async function addCategoria(nome, livello) {
-  const map = await ensureCategorie(spaceId.value, [{ nome, livello }])
-  return lookupCat(map, livello, nome)
+export async function addCategoria(nome, gruppo) {
+  const map = await ensureCategorie(spaceId.value, [{ nome, gruppo }])
+  return lookupCat(map, gruppo, nome)
+}
+/**
+ * Assegna la categoria principale di nome `nome` ai movimenti rispettando il segno di ciascuno:
+ * uscite → categoria di uscita, entrate → categoria di entrata (creata se manca). `nome` vuoto la toglie.
+ */
+export async function assignPrincipale(rows, nome) {
+  if (!nome) return updateMany(rows.map((m) => m.id), { categoria_id: null })
+  const gruppi = [...new Set(rows.map((m) => tipoOf(m.importo)))]
+  const map = await ensureCategorie(spaceId.value, gruppi.map((gruppo) => ({ gruppo, nome })))
+  for (const gruppo of gruppi) {
+    const ids = rows.filter((m) => tipoOf(m.importo) === gruppo).map((m) => m.id)
+    await updateMany(ids, { categoria_id: lookupCat(map, gruppo, nome) })
+  }
 }
 export async function updateCategoria(id, patch) {
   const row = unwrap(await supabase.from(T.categorie).update(patch).eq('id', id).select('*').single())
@@ -281,7 +305,7 @@ export async function deleteCategoria(id) {
     if (m.sottocategoria_id === id) m.sottocategoria_id = null
   }
 }
-/** Unisce la categoria `fromId` in `toId` (stesso livello) ed elimina la prima. */
+/** Unisce la categoria `fromId` in `toId` (stesso gruppo) ed elimina la prima. */
 export async function mergeCategoria(fromId, toId) {
   const from = catById.value.get(fromId)
   const col = from.livello === 'principale' ? 'categoria_id' : 'sottocategoria_id'
@@ -300,7 +324,7 @@ export const closeEditor = () => { editor.open = false }
 
 export function useData() {
   return {
-    state, movimenti, inPeriod, catById, principali, secondarie, usage, autoriById, showAutori, conti, firstDate,
+    state, movimenti, inPeriod, catById, principali, catUscita, catEntrata, secondarie, usage, autoriById, showAutori, conti, firstDate,
     writableSpaces, currentSpace, defaultTarget, spaceById, editor,
     span, anchor, range, load,
   }

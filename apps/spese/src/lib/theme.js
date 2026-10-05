@@ -30,10 +30,16 @@ export function catColor(cat) {
   const c = (cat.colore ?? PALETTE[hash(cat.nome) % PALETTE.length][0]).toLowerCase()
   return isDark.value ? DARK_OF.get(c) ?? c : c
 }
-/** Primo colore della palette non ancora usato (per le nuove categorie). */
+/** Colore della palette meno usato nel gruppo (a parità il primo in ordine): per le nuove categorie. */
 export function nextColor(used = []) {
-  const set = new Set(used.filter(Boolean).map((c) => c.toLowerCase()))
-  return (PALETTE.find(([l]) => !set.has(l)) ?? PALETTE[set.size % PALETTE.length])[0]
+  const count = new Map(PALETTE.map(([l]) => [l, 0]))
+  for (const c of used) {
+    const k = c?.toLowerCase()
+    if (count.has(k)) count.set(k, count.get(k) + 1)
+  }
+  let best = PALETTE[0][0]
+  for (const [l] of PALETTE) if (count.get(l) < count.get(best)) best = l
+  return best
 }
 function hash(s = '') {
   let h = 7
