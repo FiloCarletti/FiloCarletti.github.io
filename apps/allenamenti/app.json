@@ -1,0 +1,9 @@
+{
+  "name": "Allenamenti",
+  "description": "Diario degli allenamenti: sessioni, filtri per esercizio, record personali, statistiche e grafici di crescita",
+  "icon": "🏋️",
+  "tables": ["allenamenti_esercizi", "allenamenti_sessioni", "allenamenti_voci"],
+  "tags": ["sport", "statistiche"],
+  "createdAt": "2026-10-05",
+  "updatedAt": "2026-10-05"
+}
