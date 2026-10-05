@@ -51,7 +51,7 @@ watch([csv, year, () => state.esercizi], () => {
   result.value = csv.value ? buildImport(parseCSV(csv.value), { year: Number(year.value), known: state.esercizi }) : null
 })
 
-const existingDates = computed(() => new Set(state.sessioni.map((s) => s.data)))
+const existingDates = computed(() => new Set(state.sessioni.filter((s) => s.stato !== 'da_fare').map((s) => s.data)))
 const toImport = computed(() => (result.value?.sessions ?? []).filter((s) => !skipExisting.value || !existingDates.value.has(s.data)))
 const skipped = computed(() => (result.value?.sessions.length ?? 0) - toImport.value.length)
 const nameOf = (key) => result.value.newExercises.find((e) => e.nome.toLowerCase() === key)?.nome ?? state.esercizi.find((e) => e.nome.toLowerCase() === key)?.nome ?? key

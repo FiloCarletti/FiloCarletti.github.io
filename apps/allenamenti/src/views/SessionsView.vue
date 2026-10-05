@@ -5,10 +5,11 @@ import { supabase, unwrap, toast, useSpace } from '@shared'
 import { T } from '../db.js'
 import { useData } from '../store.js'
 import SessionCard from '../components/SessionCard.vue'
+import PlannedCard from '../components/PlannedCard.vue'
 import { sortCats } from '../lib/categories.js'
 import { fmtKg, fmtLong, fmtMonth, fmtNum } from '../lib/metrics.js'
 
-const { state, sessions, history, load, reload } = useData()
+const { state, sessions, planned, history, load, reload } = useData()
 const { canWrite } = useSpace()
 const route = useRoute()
 const router = useRouter()
@@ -111,6 +112,18 @@ const reset = () => router.replace({ query: {} })
       <RouterLink :to="`/esercizi/${exSummary.e.id}`" class="btn btn-sm">Progressi →</RouterLink>
     </div>
 
+    <section v-if="planned.length || (canWrite && state.loaded)" class="stack">
+      <div class="row-between">
+        <h2 class="month" style="text-transform: none">Da fare <span v-if="planned.length" class="muted small">· {{ planned.length }}</span></h2>
+        <RouterLink v-if="canWrite && planned.length" to="/programma" class="btn btn-ghost btn-sm">+ Programma</RouterLink>
+      </div>
+      <PlannedCard v-for="p in planned" :key="p.id" :session="p" />
+      <RouterLink v-if="!planned.length" to="/programma" class="card plan-cta">
+        <strong>Programma il prossimo allenamento</strong>
+        <span class="muted small">Fallo preparare a Claude dal tuo storico, importalo da JSON o scrivilo a mano: poi lo confermi mentre ti alleni.</span>
+      </RouterLink>
+    </section>
+
     <div class="row-between">
       <span class="muted small">{{ filtered.length }} allenament{{ filtered.length === 1 ? 'o' : 'i' }}<template v-if="ex || cat || q"> · <a href="#" @click.prevent="reset">azzera filtri</a></template></span>
       <RouterLink v-if="canWrite" to="/importa" class="btn btn-ghost btn-sm">Importa da foglio</RouterLink>
@@ -121,14 +134,14 @@ const reset = () => router.replace({ query: {} })
       <p class="error-text">{{ state.error }}</p>
       <button class="btn" style="margin-top: 12px" @click="reload">Riprova</button>
     </div>
-    <div v-else-if="!sessions.length" class="card empty stack" style="align-items: center">
+    <div v-else-if="!sessions.length && !planned.length" class="card empty stack" style="align-items: center">
       <p style="margin: 0">Nessun allenamento ancora.</p>
       <div v-if="canWrite" class="row" style="justify-content: center">
         <RouterLink to="/importa" class="btn">Importa dal foglio Google</RouterLink>
         <RouterLink to="/allenamenti/nuovo" class="btn btn-primary">Registra il primo</RouterLink>
       </div>
     </div>
-    <div v-else-if="!filtered.length" class="card empty">Nessun allenamento corrisponde ai filtri.</div>
+    <div v-else-if="sessions.length && !filtered.length" class="card empty">Nessun allenamento corrisponde ai filtri.</div>
 
     <section v-for="g in groups" :key="g.key" class="stack">
       <h2 class="month">{{ g.label }} <span class="muted small">· {{ g.items.length }}</span></h2>
@@ -144,4 +157,6 @@ const reset = () => router.replace({ query: {} })
 .month { font-size: 1rem; text-transform: capitalize; margin: 4px 0 0; }
 .summary { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; background: var(--primary-soft); border-color: transparent; box-shadow: none; }
 .summary .btn { margin-left: auto; }
+.plan-cta { display: flex; flex-direction: column; gap: 2px; border-style: dashed; box-shadow: none; text-decoration: none; color: var(--text); }
+.plan-cta:hover { border-color: var(--primary); }
 </style>

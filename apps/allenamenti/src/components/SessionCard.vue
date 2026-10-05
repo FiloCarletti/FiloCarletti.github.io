@@ -23,9 +23,13 @@ const title = () => props.session.titolo || props.session.stats.categorie.join('
         <div class="row" style="gap: 6px">
           <CatDot v-for="c in session.stats.categorie" :key="c" :cat="c" />
           <span v-if="session.stats.prs" class="badge badge-primary">🏆 {{ session.stats.prs }} record</span>
+          <span v-if="session.fonte === 'claude'" class="badge" title="Programmato con Claude">✨ Claude</span>
         </div>
       </div>
       <div v-if="canWrite" class="row" style="gap: 2px; flex-wrap: nowrap">
+        <RouterLink :to="`/allenamenti/nuovo?da=${session.id}&piano=1`" class="btn btn-ghost btn-icon" title="Programma di nuovo questo allenamento" aria-label="Programma di nuovo">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+        </RouterLink>
         <RouterLink :to="`/allenamenti/nuovo?da=${session.id}`" class="btn btn-ghost btn-icon" title="Ripeti questo allenamento" aria-label="Ripeti">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
         </RouterLink>

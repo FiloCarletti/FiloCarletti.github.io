@@ -13,6 +13,8 @@ const route = useRoute()
 const router = useRouter()
 
 const editId = computed(() => (route.name === 'edit' ? route.params.id : null))
+// ?piano=1: programma l'allenamento (finisce nei "Da fare") invece di registrarlo.
+const isPlan = computed(() => !editId.value && route.query.piano === '1')
 const form = reactive({ data: todayISO(), titolo: '', note: '', durata_min: '' })
 const rows = ref([])
 const saving = ref(false)
@@ -29,7 +31,7 @@ function newRow(v = {}) {
     nome: v.esercizio?.nome ?? '',
     serie: str(v.serie), ripetizioni: str(v.ripetizioni), peso_kg: str(v.peso_kg), rpe: str(v.rpe),
     durata_min: str(v.durata_min), distanza_km: str(v.distanza_km), note: v.note ?? '',
-    categoria: '', unita: 'rip',
+    categoria: '', unita: 'rip', piano: v.piano ?? null,
   }
 }
 
@@ -69,11 +71,17 @@ function move(i, d) {
 async function init() {
   await load()
   notFound.value = false
+  // Un allenamento programmato si completa dalla sua pagina, non da qui.
+  if (editId.value && state.sessioni.some((x) => x.id === editId.value && x.stato === 'da_fare')) {
+    router.replace(`/allenamenti/${editId.value}/svolgi`)
+    return
+  }
   const src = editId.value ?? route.query.da
   const s = src ? sessions.value.find((x) => x.id === src) : null
   if (editId.value && !s) { notFound.value = true; return }
   if (s) {
-    rows.value = s.voci.map(newRow)
+    // il piano originale resta solo modificando lo stesso allenamento, non copiandolo
+    rows.value = s.voci.map((v) => newRow(editId.value ? v : { ...v, piano: null }))
     if (editId.value) Object.assign(form, { data: s.data, titolo: s.titolo ?? '', note: s.note ?? '', durata_min: s.durata_min ?? '' })
     else Object.assign(form, { data: todayISO(), titolo: s.titolo ?? '', note: '', durata_min: '' })
   } else {
@@ -81,7 +89,7 @@ async function init() {
     rows.value = [newRow()]
   }
 }
-watch(() => [route.name, route.params.id, route.query.da], init, { immediate: true })
+watch(() => [route.name, route.params.id, route.query.da, route.query.piano], init, { immediate: true })
 
 const num = (v) => {
   const s = String(v ?? '').trim().replace(',', '.')
@@ -111,6 +119,7 @@ async function save() {
   saving.value = true
   try {
     const filled = rows.value.filter((r) => r.nome.trim())
+    if (isPlan.value) return await savePlan(filled)
     // 1. esercizi nuovi
     const ids = new Map([...byName.value].map(([k, e]) => [k, e.id]))
     const nuovi = new Map()
@@ -128,7 +137,8 @@ async function save() {
     let sid = editId.value
     if (sid) {
       unwrap(await supabase.from(T.sessioni).update(payload).eq('id', sid))
-      unwrap(await supabase.from(T.voci).delete().eq('sessione_id', sid))
+      // gli esercizi saltati di un allenamento programmato restano (non sono nel form)
+      unwrap(await supabase.from(T.voci).delete().eq('sessione_id', sid).eq('stato', 'fatto'))
     } else {
       sid = unwrap(await supabase.from(T.sessioni).insert(payload).select('id').single()).id
     }
@@ -148,6 +158,7 @@ async function save() {
         durata_min: u === 'cardio' ? num(r.durata_min) : null,
         distanza_km: u === 'cardio' ? num(r.distanza_km) : null,
         note: r.note.trim() || null,
+        piano: r.piano,
       }
     })
     unwrap(await supabase.from(T.voci).insert(voci))
@@ -159,6 +170,34 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+/** Programma: stessa funzione SQL usata dall'import JSON e dalla skill Claude. */
+async function savePlan(filled) {
+  const d = num(form.durata_min)
+  const esercizi = filled.map((r) => {
+    const u = unitOf(r)
+    const nuovo = !existing(r)
+    return {
+      nome: r.nome.trim(),
+      ...(nuovo ? { categoria: r.categoria || guessCategory(r.nome), unita: r.unita } : {}),
+      serie: u === 'cardio' ? null : num(r.serie),
+      ripetizioni: u === 'cardio' ? null : num(r.ripetizioni),
+      peso_kg: u === 'rip' ? num(r.peso_kg) : null,
+      rpe: num(r.rpe),
+      durata_min: u === 'cardio' ? num(r.durata_min) : null,
+      distanza_km: u === 'cardio' ? num(r.distanza_km) : null,
+      note: r.note.trim() || null,
+    }
+  })
+  unwrap(await supabase.rpc('allenamenti_pianifica', {
+    p_space_id: spaceId.value,
+    p_piano: { data: form.data, titolo: form.titolo.trim() || null, note: form.note.trim() || null, durata_min: d ? Math.round(d) : null, esercizi },
+    p_fonte: 'manuale',
+  }))
+  await reload()
+  toast.ok('Allenamento aggiunto ai Da fare')
+  router.push('/allenamenti')
 }
 </script>
 
@@ -172,7 +211,13 @@ async function save() {
   </div>
 
   <form v-else class="stack" style="gap: 16px" @submit.prevent="save">
-    <h2 style="margin: 0">{{ editId ? 'Modifica allenamento' : 'Nuovo allenamento' }}</h2>
+    <div>
+      <h2 style="margin: 0">{{ editId ? 'Modifica allenamento' : isPlan ? 'Programma allenamento' : 'Nuovo allenamento' }}</h2>
+      <p v-if="isPlan" class="muted small" style="margin: 4px 0 0">
+        Finisce tra i <strong>Da fare</strong>: lo confermi esercizio per esercizio mentre ti alleni.
+        Puoi anche <RouterLink to="/programma">farlo preparare a Claude o importarlo da JSON</RouterLink>.
+      </p>
+    </div>
 
     <div class="card head">
       <label class="field"><span>Data</span><input v-model="form.data" type="date" class="input" required /></label>
@@ -211,13 +256,13 @@ async function save() {
       <div v-if="unitOf(r) === 'cardio'" class="nums">
         <label class="field"><span>Minuti</span><input v-model="r.durata_min" inputmode="decimal" class="input" /></label>
         <label class="field"><span>Km</span><input v-model="r.distanza_km" inputmode="decimal" class="input" /></label>
-        <label class="field"><span>RPE</span><input v-model="r.rpe" inputmode="decimal" class="input" placeholder="1–10" /></label>
+        <label class="field"><span>RPE</span><input v-model="r.rpe" inputmode="decimal" class="input" :placeholder="isPlan ? 'obiett.' : '1–10'" :title="isPlan ? 'RPE obiettivo (1–10)' : undefined" /></label>
       </div>
       <div v-else class="nums">
         <label class="field"><span>Serie</span><input v-model="r.serie" inputmode="numeric" class="input" /></label>
         <label class="field"><span>{{ unitOf(r) === 'sec' ? 'Secondi' : 'Rip' }}</span><input v-model="r.ripetizioni" inputmode="decimal" class="input" /></label>
         <label v-if="unitOf(r) === 'rip'" class="field"><span>Kg</span><input v-model="r.peso_kg" inputmode="decimal" class="input" placeholder="0" /></label>
-        <label class="field"><span>RPE</span><input v-model="r.rpe" inputmode="decimal" class="input" placeholder="1–10" /></label>
+        <label class="field"><span>RPE</span><input v-model="r.rpe" inputmode="decimal" class="input" :placeholder="isPlan ? 'obiett.' : '1–10'" :title="isPlan ? 'RPE obiettivo (1–10)' : undefined" /></label>
       </div>
 
       <input v-model="r.note" class="input input-sm" placeholder="Note (facoltative)" aria-label="Note" />
@@ -230,11 +275,11 @@ async function save() {
 
     <button type="button" class="btn" style="align-self: flex-start" @click="rows.push(newRow())">+ Aggiungi esercizio</button>
 
-    <label class="field"><span>Note sull'allenamento</span><textarea v-model="form.note" class="textarea" placeholder="Come è andata, sensazioni…" /></label>
+    <label class="field"><span>Note sull'allenamento</span><textarea v-model="form.note" class="textarea" :placeholder="isPlan ? 'Obiettivo, indicazioni…' : 'Come è andata, sensazioni…'" /></label>
 
     <div class="row actions">
       <RouterLink to="/allenamenti" class="btn">Annulla</RouterLink>
-      <button class="btn btn-primary" :disabled="saving">{{ saving ? 'Salvataggio…' : 'Salva allenamento' }}</button>
+      <button class="btn btn-primary" :disabled="saving">{{ saving ? 'Salvataggio…' : isPlan ? 'Aggiungi ai Da fare' : 'Salva allenamento' }}</button>
     </div>
   </form>
 </template>
