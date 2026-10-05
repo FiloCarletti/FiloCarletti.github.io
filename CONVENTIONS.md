@@ -40,7 +40,7 @@ scripts/                # build-all, dev, new-app
 5. **Errori**: ogni chiamata Supabase passa da `unwrap(...)` dentro `try/catch` con `toast.error(e)`.
 6. **Segreti**: nel codice c'è solo la publishable key (pubblica per design). Mai service_role/secret key, mai token o password nel repo (è pubblico).
 7. **Metadati**: aggiorna `app.json` (`description`, `tables`, `updatedAt`) a ogni modifica: la dashboard si rigenera da lì.
-8. **Spazi**: `const { spaceId, canWrite } = useSpace()`. Ogni select filtra `.eq('space_id', spaceId.value)`, ogni insert mette `space_id: spaceId.value`, i comandi di modifica stanno sotto `v-if="canWrite"`. Cambiare spazio ricarica la pagina, quindi basta leggere i dati al mount. `AuthGate` mostra l'app solo dopo aver verificato l'accesso e caricato gli spazi; `AppShell` mostra il selettore "Dati" quando serve.
+8. **Spazi**: `const { spaceId, canWrite } = useSpace()`. Ogni select filtra `.eq('space_id', spaceId.value)`, ogni insert mette `space_id: spaceId.value`, i comandi di modifica stanno sotto `v-if="canWrite"`. Lo spazio sta nell'URL (`#/percorso?space=<id>`, più `&k=<token>` per il link pubblico): il router lo conserva da solo e un cambio di spazio ricarica la pagina, quindi basta leggere i dati al mount. Senza `space` si apre lo spazio personale. `AuthGate` mostra l'app solo dopo aver verificato l'accesso; `AppShell` mostra sotto il titolo i proprietari dello spazio ("Tu", "Tu e Marco", "Marco e altri 2") e, cliccandoli, il pannello di condivisione. Non servono selettori di spazio nelle viste: i dati altrui si aprono dalla Community della dashboard o da un link.
 9. **`dataMode`** in `app.json`: `personal` (ognuno i suoi dati, es. allenamenti), `shared` (dati unici per tutti gli abilitati, es. lista della spesa: all'admin viene creato uno spazio "Condiviso"), `mixed` (personale + spazi condivisi, es. spese con "conto comune"). In tutti i casi l'admin può creare spazi condivisi e condividere quelli personali in lettura o modifica.
 
 ## Permessi e spazi
@@ -50,10 +50,13 @@ scripts/                # build-all, dev, new-app
 | Utente | `private.allowed_emails` (`is_admin`, `display_name`) | Può fare login. Gli admin vedono tutte le app e gestiscono gli accessi |
 | Accesso app | `private.app_grants (app_slug, email)` | L'utente vede e apre l'app |
 | Spazio | `private.spaces (app_slug, kind, name, owner_id)` | Contenitore dei dati. `personal`: uno per utente e app, creato al primo accesso. `shared`: creato dall'admin |
-| Membro | `private.space_members (space_id, email, role)` | `viewer` legge, `editor` legge e scrive. Il titolare/creatore ha sempre tutti i permessi |
+| Membro | `private.space_members (space_id, email, role)` | `viewer` legge, `editor` legge, scrive ed è co-proprietario. Il titolare (`owner_id`) ha sempre tutti i permessi |
+| Link pubblico | `private.spaces.link_token` | Chi ha il link (`&k=<token>`) legge lo spazio anche senza login |
 
-- Le tabelle `private.*` non sono esposte: si usano solo tramite RPC (`my_spaces`, `my_apps`, `admin_*`).
-- Le policy delle tabelle delle app usano `public.readable_space_ids()` e `public.writable_space_ids()` (già filtrate per app abilitata).
+- **Proprietari** = titolare + editor: gestiscono membri e link pubblico (RPC `space_share`, `space_set_link`). Chiunque può uscire da uno spazio condiviso con lui. Si condivide solo con email già in `allowed_emails`.
+- Un membro vede lo spazio anche se l'app non gli è abilitata: l'abilitazione serve per avere dati propri in quell'app.
+- Le tabelle `private.*` non sono esposte: si usano solo tramite RPC (`my_spaces`, `space_info`, `my_community`, `my_apps`, `admin_*`).
+- Le policy delle tabelle delle app usano `public.readable_space_ids()` e `public.writable_space_ids()`. Il link pubblico passa dall'header `x-space-token` (lo manda il client condiviso): `anon` legge solo lo spazio di cui conosce il token.
 - L'admin non vede automaticamente i dati personali altrui: deve aggiungersi come membro, in modo visibile.
 - Per dare accesso a qualcuno: dashboard → **Accessi** → aggiungi l'email, abilita le app, e se serve condividi uno spazio.
 
@@ -61,7 +64,7 @@ scripts/                # build-all, dev, new-app
 
 - Ogni tabella si chiama `<prefisso>_<entità>` dove il prefisso è lo slug con `_` (`spese-casa` → `spese_casa_movimenti`). Mai tabelle senza prefisso, mai toccare tabelle di altre app.
 - Colonne standard: `id uuid pk default gen_random_uuid()`, `space_id uuid not null references private.spaces(id)` (dove stanno i dati), `owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade` (chi ha creato la riga), `created_at timestamptz not null default now()`, `updated_at timestamptz not null default now()` + trigger `public.set_updated_at()`.
-- **RLS sempre attiva** con le 4 policy standard sugli spazi (vedi template sotto). Nessuna policy per `anon`.
+- **RLS sempre attiva** con le 4 policy standard sugli spazi (vedi template sotto). L'unica concessione ad `anon` è il `select` del template, limitato agli spazi con link pubblico di cui la richiesta porta il token.
 - Indice su `space_id`, `owner_id` e sulle colonne usate nei filtri/ordinamenti. I vincoli di unicità "per utente" diventano "per spazio" (`unique (space_id, …)`).
 - Funzioni/viste specifiche dell'app: stesso prefisso; viste con `security_invoker = true`; funzioni con `set search_path = ''`.
 - Storage: bucket privato `<slug>` con policy su `bucket_id = '<slug>'` + `public.is_allowed()` + `owner = auth.uid()`.
@@ -84,7 +87,8 @@ create table public.<prefisso>_<entita> (
 create index on public.<prefisso>_<entita> (space_id);
 create index on public.<prefisso>_<entita> (owner_id);
 alter table public.<prefisso>_<entita> enable row level security;
-create policy space_select on public.<prefisso>_<entita> for select to authenticated
+grant select on public.<prefisso>_<entita> to anon;  -- solo per il link pubblico, filtrato dalla policy
+create policy space_select on public.<prefisso>_<entita> for select to anon, authenticated
   using (space_id in (select public.readable_space_ids()));
 create policy space_insert on public.<prefisso>_<entita> for insert to authenticated
   with check (space_id in (select public.writable_space_ids()) and owner_id = (select auth.uid()));
@@ -113,6 +117,6 @@ Login da localhost: in Supabase → Authentication → URL Configuration deve es
 ## Sicurezza: perché i dati sono protetti anche se il repo è pubblico
 
 - Il codice e la publishable key sono pubblici; chiunque può chiamare le API Supabase.
-- Ma ogni tabella ha RLS: si leggono solo gli spazi propri o condivisi con sé, nelle app abilitate; si scrive solo dove si è titolari o editor.
+- Ma ogni tabella ha RLS: si leggono solo gli spazi propri, quelli condivisi con sé o quelli di cui si ha il link pubblico (token segreto); si scrive solo dove si è titolari o editor.
 - L'hook `before-user-created` impedisce perfino la registrazione di altri account.
 - Per dare accesso a qualcuno: pagina **Accessi** della dashboard (oppure le RPC `admin_*`). Se il progetto Google OAuth è in modalità "Testing", l'email va aggiunta anche ai *Test users* in Google Cloud Console.

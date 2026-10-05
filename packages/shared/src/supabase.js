@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js'
+import { LINK_TOKEN } from './url.js'
 
 // Un solo client per tutte le app. Stessa origine (filocarletti.github.io) =
 // stessa sessione: fai login una volta e sei dentro ovunque.
@@ -11,6 +12,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     detectSessionInUrl: true,
     storageKey: 'filo-pages-auth',
   },
+  // Link pubblico: le policy RLS leggono questo header (public.request_space_token()).
+  global: LINK_TOKEN ? { headers: { 'x-space-token': LINK_TOKEN } } : undefined,
 })
 
 /** Restituisce `data` oppure lancia l'errore di Supabase. */

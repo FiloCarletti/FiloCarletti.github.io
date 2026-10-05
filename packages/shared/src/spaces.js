@@ -1,72 +1,101 @@
 import { computed, readonly, ref } from 'vue'
 import { supabase } from './supabase.js'
+import { hashParams, spaceUrl } from './url.js'
 
 /**
- * Spazi di dati dell'app corrente (vedi CONVENTIONS.md, "Permessi e spazi").
- *  - personale: uno per utente, creato al primo accesso
- *  - condiviso: creato dall'admin, con membri in lettura (viewer) o scrittura (editor)
- * Ogni riga delle tabelle dell'app ha `space_id`: si legge e si scrive sempre
- * nello spazio corrente (`spaceId`).
+ * Spazio di dati dell'app corrente (vedi CONVENTIONS.md, "Permessi e spazi").
+ * Lo spazio sta nell'URL (#/…?space=<id>): senza, si apre il proprio spazio personale.
+ * Proprietari = titolare + membri "editor"; i "viewer" leggono soltanto;
+ * con il link pubblico (&k=<token>) si legge anche senza login.
  */
-const spaces = ref([])
-const currentId = ref(null)
-const status = ref('idle') // idle | loading | ok | denied | empty | error
+const info = ref(null) // risultato di rpc('space_info')
+const mine = ref([]) // spazi dell'utente in questa app (rpc('my_spaces'))
+const status = ref('idle') // idle | loading | ok | login | denied | forbidden | empty | error
 const error = ref(null)
-let pending = null
+let lastKey = null
 
-const storageKey = () => `filo-space:${__APP_SLUG__}`
-function remembered() {
-  try { return localStorage.getItem(storageKey()) } catch { return null }
-}
-
-/** Chiamata da AuthGate dopo il login. `mode`: 'personal' | 'shared' | 'mixed' (da app.json → dataMode). */
-export function initSpaces(slug = __APP_SLUG__, mode = __APP_DATA_MODE__) {
-  if (pending) return pending
+/** Chiamata da AuthGate. `loggedIn`: utente autenticato e in allowlist. */
+export async function initSpaces({ loggedIn, force = false } = {}) {
+  const requested = hashParams().get('space')
+  const key = `${loggedIn}|${requested}`
+  if (!force && key === lastKey && status.value !== 'error') return
+  lastKey = key
   status.value = 'loading'
-  pending = (async () => {
-    const { data, error: err } = await supabase.rpc('my_spaces', { p_app: slug, p_personal: mode !== 'shared' })
-    if (err) {
-      error.value = err.message
-      status.value = err.code === '42501' ? 'denied' : 'error'
-      pending = null
+  error.value = null
+  try {
+    let id = requested
+    if (loggedIn) {
+      const { data, error: err } = await supabase.rpc('my_spaces', {
+        p_app: __APP_SLUG__, p_personal: __APP_DATA_MODE__ !== 'shared',
+      })
+      if (!err) {
+        mine.value = (data ?? []).map((s) => ({ id: s.space_id, name: s.space_name, kind: s.space_kind, role: s.my_role, ownerName: s.owner_name }))
+      } else if (!requested) {
+        status.value = err.code === '42501' ? 'denied' : 'error'
+        error.value = err.message
+        return
+      }
+      id ??= mine.value[0]?.id
+      if (!id) { status.value = 'empty'; return }
+    } else if (!requested) {
+      status.value = 'login'
       return
     }
-    spaces.value = (data ?? []).map((s) => ({
-      id: s.space_id, name: s.space_name, kind: s.space_kind, role: s.my_role, ownerName: s.owner_name,
-    }))
-    const saved = remembered()
-    currentId.value = spaces.value.find((s) => s.id === saved)?.id ?? spaces.value[0]?.id ?? null
-    status.value = currentId.value ? 'ok' : 'empty'
-  })()
-  return pending
+    const { data: si, error: err } = await supabase.rpc('space_info', { p_space: id })
+    if (err) throw err
+    if (!si || si.app_slug !== __APP_SLUG__) {
+      status.value = loggedIn ? 'forbidden' : 'login'
+      return
+    }
+    info.value = si
+    status.value = 'ok'
+  } catch (e) {
+    error.value = e.message ?? String(e)
+    status.value = 'error'
+  }
 }
 
-/** Etichetta leggibile: "Personale", "Dati di Marco", "Casa". */
-export function spaceLabel(s) {
-  if (!s) return ''
-  if (s.kind === 'personal') return s.role === 'owner' ? 'Personale' : `Dati di ${s.ownerName}`
-  return s.name
+/** Ricarica i dettagli dello spazio (dopo una modifica alla condivisione). */
+export async function refreshSpace() {
+  if (!info.value) return
+  const { data, error: err } = await supabase.rpc('space_info', { p_space: info.value.id })
+  if (err) throw err
+  if (data) info.value = data
 }
 
-export function setSpace(id) {
-  if (id === currentId.value) return
-  try { localStorage.setItem(storageKey(), id) } catch { /* storage non disponibile */ }
-  // Ricarica: ogni vista rilegge i dati del nuovo spazio senza logica dedicata.
-  window.location.reload()
+/**
+ * Etichetta dei proprietari dal punto di vista di chi guarda:
+ *  - sei tra i proprietari: "Tu", "Tu e Marco", "Tu e altri 3"
+ *  - non lo sei: "Marco", "Marco e altri 2"
+ */
+export function ownersLabel(owners = []) {
+  if (!owners.length) return ''
+  const others = owners.filter((o) => !o.me)
+  if (others.length < owners.length) {
+    if (!others.length) return 'Tu'
+    return others.length === 1 ? `Tu e ${firstName(others[0].name)}` : `Tu e altri ${others.length}`
+  }
+  return owners.length === 1 ? owners[0].name : `${firstName(owners[0].name)} e altri ${owners.length - 1}`
 }
+const firstName = (n = '') => n.split(' ')[0]
 
 export function useSpace() {
-  const current = computed(() => spaces.value.find((s) => s.id === currentId.value) ?? null)
+  const role = computed(() => info.value?.my_role ?? null)
   return {
-    spaces: readonly(spaces),
     status: readonly(status),
     error: readonly(error),
-    current,
+    info: readonly(info),
+    mine: readonly(mine),
     /** id dello spazio corrente: va messo in ogni insert e usato in ogni select */
-    spaceId: computed(() => currentId.value),
+    spaceId: computed(() => info.value?.id ?? null),
     /** false = sola lettura: nascondi i comandi di modifica */
-    canWrite: computed(() => ['owner', 'editor'].includes(current.value?.role)),
-    label: computed(() => spaceLabel(current.value)),
-    setSpace,
+    canWrite: computed(() => role.value === 'owner' || role.value === 'editor'),
+    /** può condividere lo spazio (proprietari e admin) */
+    canManage: computed(() => !!info.value?.can_manage),
+    /** arrivato dal link pubblico (eventualmente senza login) */
+    viaLink: computed(() => role.value === 'link'),
+    owners: computed(() => info.value?.owners ?? []),
+    ownersLabel: computed(() => ownersLabel(info.value?.owners ?? [])),
+    shareUrl: (withToken = false) => (info.value ? spaceUrl(__APP_SLUG__, info.value.id, withToken ? info.value.link_token : null) : ''),
   }
 }

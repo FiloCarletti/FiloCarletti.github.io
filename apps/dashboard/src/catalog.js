@@ -4,14 +4,19 @@ import { supabase, unwrap, toast } from '@shared'
 // Generato da scripts/build-all.mjs leggendo apps/*/app.json
 import manifest from './apps.generated.json'
 
-const state = reactive({ loaded: false, loading: false, admin: false, grants: [], recent: [] })
+const state = reactive({ loaded: false, loading: false, admin: false, grants: [], recent: [], community: [] })
 
 export async function loadCatalog() {
   if (state.loading) return
   state.loading = true
   try {
-    const res = unwrap(await supabase.rpc('my_apps')) ?? {}
-    Object.assign(state, { admin: !!res.admin, grants: res.grants ?? [], recent: res.recent ?? [], loaded: true })
+    const [res, community] = await Promise.all([
+      supabase.rpc('my_apps').then(unwrap),
+      supabase.rpc('my_community').then(unwrap),
+    ])
+    Object.assign(state, {
+      admin: !!res?.admin, grants: res?.grants ?? [], recent: res?.recent ?? [], community: community ?? [], loaded: true,
+    })
   } catch (e) {
     toast.error(e)
   } finally {
@@ -35,7 +40,15 @@ export function useCatalog() {
   const recent = computed(() =>
     state.recent.map((r) => apps.value.find((a) => a.slug === r.slug)).filter(Boolean).slice(0, 10),
   )
-  return { state, apps, recent, all: manifest }
+  // Amici: chi ha condiviso qualcosa con me; per ogni spazio l'app corrispondente.
+  const bySlug = new Map(manifest.map((a) => [a.slug, a]))
+  const friends = computed(() =>
+    state.community.map((f) => ({
+      ...f,
+      spaces: f.spaces.map((s) => ({ ...s, app: bySlug.get(s.app_slug) ?? { name: s.app_slug, icon: '🧩', slug: s.app_slug } })),
+    })),
+  )
+  return { state, apps, recent, friends, all: manifest }
 }
 
 const rtf = new Intl.RelativeTimeFormat('it-IT', { numeric: 'auto' })

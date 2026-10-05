@@ -57,6 +57,8 @@ export function initAuth() {
 
 export async function signInWithGoogle() {
   error.value = null
+  // Google torna senza hash: ci si ricorda dove si era (es. #/?space=…) e lo si ripristina dopo.
+  try { sessionStorage.setItem('filo-after-login', window.location.hash) } catch { /* storage non disponibile */ }
   const redirectTo = window.location.origin + window.location.pathname
   const { error: err } = await supabase.auth.signInWithOAuth({
     provider: 'google',

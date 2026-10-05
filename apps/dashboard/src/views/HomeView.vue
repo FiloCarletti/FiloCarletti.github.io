@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { fmtDate, useAuth } from '@shared'
+import { RouterLink } from 'vue-router'
+import { Avatar, fmtDate, useAuth } from '@shared'
 import { MODES, fmtRelative, loadCatalog, useCatalog } from '../catalog.js'
 
 const { user } = useAuth()
-const { state, apps, recent } = useCatalog()
+const { state, apps, recent, friends } = useCatalog()
 onMounted(loadCatalog)
 
 const firstName = computed(() => (user.value?.user_metadata?.full_name ?? '').split(' ')[0])
@@ -136,6 +137,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p v-else>Non hai ancora app abilitate: chiedi all'amministratore di darti accesso.</p>
         </div>
       </section>
+
+      <section v-if="!q && !tag" aria-labelledby="community" class="stack" style="gap: 10px">
+        <h3 id="community" class="section-title" style="margin: 0">Community</h3>
+        <div v-if="friends.length" class="friends">
+          <RouterLink v-for="f in friends" :key="f.email" :to="`/amici/${encodeURIComponent(f.email)}`" class="card friend">
+            <Avatar :name="f.name" :src="f.avatar" :size="44" />
+            <div style="min-width: 0">
+              <strong class="ellipsis">{{ f.name }}</strong>
+              <div class="muted small">{{ f.spaces.length }} condivision{{ f.spaces.length === 1 ? 'e' : 'i' }}</div>
+              <div class="friend-apps">
+                <span v-for="s in f.spaces.slice(0, 5)" :key="s.id" :title="s.app.name">{{ s.app.icon }}</span>
+              </div>
+            </div>
+          </RouterLink>
+        </div>
+        <p v-else class="card empty small" style="margin: 0">Quando qualcuno condivide con te i suoi dati, lo trovi qui.</p>
+      </section>
     </template>
   </div>
 </template>
@@ -171,4 +189,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .meta { gap: 6px; margin-top: 2px; }
 .chev { color: var(--muted); align-self: center; flex-shrink: 0; }
 @media (max-width: 480px) { .hide-sm { display: none; } }
+.friends { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.friend { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; padding: 12px 14px; transition: transform .15s, border-color .15s; }
+.friend:hover { transform: translateY(-2px); border-color: var(--primary); }
+.friend-apps { display: flex; gap: 4px; margin-top: 2px; }
+.ellipsis { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
