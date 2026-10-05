@@ -43,19 +43,21 @@ export const reload = () => load(true)
 const esById = computed(() => new Map(state.esercizi.map((e) => [e.id, e])))
 
 /**
- * Sessioni arricchite, dalla più recente: ogni sessione ha le sue voci (con esercizio),
- * le statistiche e i record personali raggiunti.
+ * Sessioni registrate (stato "fatto"), dalla più recente: ogni sessione ha le sue voci fatte
+ * (con esercizio), le statistiche e i record personali raggiunti.
+ * Gli allenamenti programmati e gli esercizi saltati non entrano nelle statistiche.
  */
 const sessions = computed(() => {
   const bySession = new Map()
   for (const v of state.voci) {
+    if (v.stato && v.stato !== 'fatto') continue
     const esercizio = esById.value.get(v.esercizio_id)
     if (!esercizio) continue
     const list = bySession.get(v.sessione_id) ?? []
     list.push({ ...v, esercizio })
     bySession.set(v.sessione_id, list)
   }
-  const asc = [...state.sessioni].sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at))
+  const asc = state.sessioni.filter((s) => !s.stato || s.stato === 'fatto').sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at))
   const best = new Map() // esercizio_id → miglior punteggio finora
   const out = asc.map((s) => {
     const voci = (bySession.get(s.id) ?? []).sort((a, b) => a.ordine - b.ordine)
@@ -103,6 +105,41 @@ const history = computed(() => {
   return map
 })
 
+/**
+ * Allenamenti programmati (stato "da_fare"), dal più vicino: tutte le voci (da fare, fatte, saltate)
+ * in ordine, con esercizio e avanzamento.
+ */
+const planned = computed(() => {
+  const bySession = new Map()
+  for (const v of state.voci) {
+    const esercizio = esById.value.get(v.esercizio_id)
+    if (!esercizio) continue
+    const list = bySession.get(v.sessione_id) ?? []
+    list.push({ ...v, esercizio })
+    bySession.set(v.sessione_id, list)
+  }
+  return state.sessioni
+    .filter((s) => s.stato === 'da_fare')
+    .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at))
+    .map((s) => {
+      const voci = (bySession.get(s.id) ?? []).sort((a, b) => a.ordine - b.ordine)
+      return { ...s, voci, done: voci.filter((v) => v.stato !== 'da_fare').length }
+    })
+})
+
+/** Aggiorna (o aggiunge) righe nello stato locale senza ricaricare tutto. */
+export function putLocal(key, rows) {
+  for (const row of [].concat(rows)) {
+    const i = state[key].findIndex((x) => x.id === row.id)
+    if (i >= 0) state[key][i] = row
+    else state[key].push(row)
+  }
+}
+export function dropLocal(key, id) {
+  const i = state[key].findIndex((x) => x.id === id)
+  if (i >= 0) state[key].splice(i, 1)
+}
+
 export function useData() {
-  return { state, esById, sessions, history, load, reload }
+  return { state, esById, sessions, planned, history, load, reload }
 }

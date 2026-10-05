@@ -7,11 +7,12 @@ import ChartBox from '../components/ChartBox.vue'
 import StatTile from '../components/StatTile.vue'
 import WeekHeatmap from '../components/WeekHeatmap.vue'
 import CatDot from '../components/CatDot.vue'
+import PlannedCard from '../components/PlannedCard.vue'
 import { catColor, sortCats } from '../lib/categories.js'
 import { DAY, daysBetween, fmtAgo, fmtKg, fmtNum, fmtPct, fmtShort, fmtVoce, parseISO, toISO, weekStart } from '../lib/metrics.js'
 import { accent } from '../lib/theme.js'
 
-const { state, sessions, history, load } = useData()
+const { state, sessions, planned, history, load } = useData()
 const router = useRouter()
 const { canWrite } = useSpace()
 onMounted(load)
@@ -199,6 +200,7 @@ const records = computed(() =>
   </div>
 
   <div v-else-if="!sessions.length" class="card empty stack" style="align-items: center">
+    <PlannedCard v-if="planned.length" :session="planned[0]" compact style="align-self: stretch; text-align: left" />
     <p style="font-size: 2.4rem; margin: 0">🏋️</p>
     <p style="margin: 0">Nessun allenamento registrato.</p>
     <div v-if="canWrite" class="row" style="justify-content: center">
@@ -208,6 +210,7 @@ const records = computed(() =>
   </div>
 
   <div v-else class="stack" style="gap: 16px">
+    <PlannedCard v-if="planned.length" :session="planned[0]" compact />
     <div class="filters">
       <label class="field">
         <span>Periodo</span>
