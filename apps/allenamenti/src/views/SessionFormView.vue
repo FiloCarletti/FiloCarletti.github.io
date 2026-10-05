@@ -1,13 +1,14 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { supabase, unwrap, toast, todayISO } from '@shared'
+import { supabase, unwrap, toast, todayISO, useSpace } from '@shared'
 import { T } from '../db.js'
 import { useData } from '../store.js'
 import { CATEGORIE, UNITA, guessCategory, guessUnit } from '../lib/categories.js'
 import { fmtShort, fmtVoce } from '../lib/metrics.js'
 
 const { state, sessions, history, load, reload } = useData()
+const { spaceId, canWrite } = useSpace()
 const route = useRoute()
 const router = useRouter()
 
@@ -115,7 +116,7 @@ async function save() {
     const nuovi = new Map()
     for (const r of filled) {
       const k = r.nome.trim().toLowerCase()
-      if (!ids.has(k) && !nuovi.has(k)) nuovi.set(k, { nome: r.nome.trim(), categoria: r.categoria || guessCategory(r.nome), unita: r.unita })
+      if (!ids.has(k) && !nuovi.has(k)) nuovi.set(k, { space_id: spaceId.value, nome: r.nome.trim(), categoria: r.categoria || guessCategory(r.nome), unita: r.unita })
     }
     if (nuovi.size) {
       const created = unwrap(await supabase.from(T.esercizi).insert([...nuovi.values()]).select('id, nome'))
@@ -123,7 +124,7 @@ async function save() {
     }
     // 2. sessione
     const d = num(form.durata_min)
-    const payload = { data: form.data, titolo: form.titolo.trim() || null, note: form.note.trim() || null, durata_min: d ? Math.round(d) : null }
+    const payload = { space_id: spaceId.value, data: form.data, titolo: form.titolo.trim() || null, note: form.note.trim() || null, durata_min: d ? Math.round(d) : null }
     let sid = editId.value
     if (sid) {
       unwrap(await supabase.from(T.sessioni).update(payload).eq('id', sid))
@@ -136,6 +137,7 @@ async function save() {
       const u = unitOf(r)
       const s = num(r.serie)
       return {
+        space_id: spaceId.value,
         sessione_id: sid,
         esercizio_id: ids.get(r.nome.trim().toLowerCase()),
         ordine: i,
@@ -162,6 +164,9 @@ async function save() {
 
 <template>
   <div v-if="state.loading && !state.loaded" class="card empty"><div class="spinner" style="margin: 0 auto" /></div>
+  <div v-else-if="!canWrite" class="card empty">
+    Questi dati sono in sola lettura. <RouterLink to="/allenamenti">Torna alla lista</RouterLink>
+  </div>
   <div v-else-if="notFound" class="card empty">
     Allenamento non trovato. <RouterLink to="/allenamenti">Torna alla lista</RouterLink>
   </div>

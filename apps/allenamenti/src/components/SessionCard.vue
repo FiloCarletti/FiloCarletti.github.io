@@ -1,5 +1,6 @@
 <script setup>
 import { RouterLink } from 'vue-router'
+import { useSpace } from '@shared'
 import CatDot from './CatDot.vue'
 import { fmtKg, fmtLong, fmtNum, fmtVoce } from '../lib/metrics.js'
 
@@ -8,6 +9,7 @@ const props = defineProps({
   highlight: { type: String, default: '' }, // esercizio_id da evidenziare
 })
 defineEmits(['delete'])
+const { canWrite } = useSpace()
 
 const title = () => props.session.titolo || props.session.stats.categorie.join(' · ') || 'Allenamento'
 </script>
@@ -23,7 +25,7 @@ const title = () => props.session.titolo || props.session.stats.categorie.join('
           <span v-if="session.stats.prs" class="badge badge-primary">🏆 {{ session.stats.prs }} record</span>
         </div>
       </div>
-      <div class="row" style="gap: 2px; flex-wrap: nowrap">
+      <div v-if="canWrite" class="row" style="gap: 2px; flex-wrap: nowrap">
         <RouterLink :to="`/allenamenti/nuovo?da=${session.id}`" class="btn btn-ghost btn-icon" title="Ripeti questo allenamento" aria-label="Ripeti">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
         </RouterLink>

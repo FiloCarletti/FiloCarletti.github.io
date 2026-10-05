@@ -1,6 +1,8 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
-import { AuthGate, AppShell, ToastHost } from '@shared'
+import { AuthGate, AppShell, ToastHost, useSpace } from '@shared'
+
+const { canWrite } = useSpace()
 
 const tabs = [
   { to: '/', label: 'Panoramica' },
@@ -13,7 +15,7 @@ const tabs = [
   <AuthGate>
     <AppShell title="Allenamenti" icon="🏋️">
       <template #actions>
-        <RouterLink to="/allenamenti/nuovo" class="btn btn-primary btn-sm" aria-label="Nuovo allenamento">
+        <RouterLink v-if="canWrite" to="/allenamenti/nuovo" class="btn btn-primary btn-sm" aria-label="Nuovo allenamento">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           <span class="hide-xs">Nuovo</span>
         </RouterLink>

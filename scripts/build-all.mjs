@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { build } from 'vite'
 import {
-  APPS_DIR, DIST_DIR, DASHBOARD, RESERVED, listApps, readMeta, baseFor, viteConfigFor,
+  DIST_DIR, DASHBOARD, RESERVED, listApps, readMeta, baseFor, viteConfigFor, writeManifest,
 } from './vite-config.mjs'
 
 const onlyIdx = process.argv.indexOf('--only')
@@ -24,28 +24,7 @@ if (errors.length) {
   process.exit(1)
 }
 
-// Manifest letto dalla dashboard (generato, non va committato).
-const manifest = slugs
-  .filter((s) => s !== DASHBOARD)
-  .map((slug) => {
-    const m = readMeta(slug)
-    return {
-      slug,
-      path: baseFor(slug),
-      name: m.name ?? slug,
-      description: m.description ?? '',
-      icon: m.icon ?? '🧩',
-      tags: m.tags ?? [],
-      hidden: !!m.hidden,
-      createdAt: m.createdAt ?? null,
-      updatedAt: m.updatedAt ?? null,
-    }
-  })
-  .sort((a, b) => a.name.localeCompare(b.name, 'it'))
-fs.writeFileSync(
-  path.join(APPS_DIR, DASHBOARD, 'src', 'apps.generated.json'),
-  JSON.stringify(manifest, null, 2) + '\n',
-)
+writeManifest()
 
 const targets = only ? [only] : [DASHBOARD, ...slugs.filter((s) => s !== DASHBOARD)]
 if (only && !slugs.includes(only)) {

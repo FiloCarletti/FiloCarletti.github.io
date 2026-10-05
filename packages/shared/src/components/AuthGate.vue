@@ -1,6 +1,13 @@
 <script setup>
+import { watch } from 'vue'
 import { useAuth } from '../auth.js'
+import { initSpaces, useSpace } from '../spaces.js'
+
 const { ready, session, allowed, email, error, signInWithGoogle, signOut } = useAuth()
+const { status: spaceStatus, error: spaceError } = useSpace()
+// La dashboard non ha dati propri; le app caricano i loro spazi e verificano l'accesso.
+const isApp = __APP_SLUG__ !== 'dashboard'
+watch(allowed, (ok) => ok && isApp && initSpaces(), { immediate: true })
 </script>
 
 <template>
@@ -28,6 +35,24 @@ const { ready, session, allowed, email, error, signInWithGoogle, signOut } = use
       <p class="muted">L'account <strong>{{ email }}</strong> non è abilitato.</p>
       <button class="btn" @click="signOut">Esci</button>
       <p v-if="error" class="error-text">{{ error }}</p>
+    </div>
+  </div>
+
+  <div v-else-if="isApp && (spaceStatus === 'idle' || spaceStatus === 'loading')" class="gate">
+    <div class="spinner" aria-label="Caricamento" />
+  </div>
+
+  <div v-else-if="isApp && spaceStatus !== 'ok'" class="gate">
+    <div class="card gate-card stack">
+      <div class="gate-logo">{{ spaceStatus === 'error' ? '⚠️' : '🚪' }}</div>
+      <h1>{{ spaceStatus === 'denied' ? 'App non abilitata' : spaceStatus === 'empty' ? 'Nessun dato condiviso' : 'Errore' }}</h1>
+      <p v-if="spaceStatus === 'denied'" class="muted">L'account <strong>{{ email }}</strong> non ha accesso a questa app.</p>
+      <p v-else-if="spaceStatus === 'empty'" class="muted">Nessuno spazio di questa app è ancora condiviso con te.</p>
+      <p v-else class="error-text">{{ spaceError }}</p>
+      <div class="row" style="justify-content: center">
+        <a href="/" class="btn">Torna alla dashboard</a>
+        <button v-if="spaceStatus === 'error'" class="btn btn-primary" @click="initSpaces()">Riprova</button>
+      </div>
     </div>
   </div>
 

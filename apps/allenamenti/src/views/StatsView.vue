@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { useSpace } from '@shared'
 import { useData } from '../store.js'
 import ChartBox from '../components/ChartBox.vue'
 import StatTile from '../components/StatTile.vue'
@@ -12,6 +13,7 @@ import { accent } from '../lib/theme.js'
 
 const { state, sessions, history, load } = useData()
 const router = useRouter()
+const { canWrite } = useSpace()
 onMounted(load)
 
 const PERIODS = [
@@ -199,7 +201,7 @@ const records = computed(() =>
   <div v-else-if="!sessions.length" class="card empty stack" style="align-items: center">
     <p style="font-size: 2.4rem; margin: 0">🏋️</p>
     <p style="margin: 0">Nessun allenamento registrato.</p>
-    <div class="row" style="justify-content: center">
+    <div v-if="canWrite" class="row" style="justify-content: center">
       <RouterLink to="/importa" class="btn">Importa dal foglio Google</RouterLink>
       <RouterLink to="/allenamenti/nuovo" class="btn btn-primary">Registra un allenamento</RouterLink>
     </div>

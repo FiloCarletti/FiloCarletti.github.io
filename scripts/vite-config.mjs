@@ -26,6 +26,30 @@ export function readMeta(slug) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
 }
 
+/** Manifest letto dalla dashboard (generato, non va committato). */
+export function writeManifest() {
+  const manifest = listApps()
+    .filter((s) => s !== DASHBOARD)
+    .map((slug) => {
+      const m = readMeta(slug)
+      return {
+        slug,
+        path: baseFor(slug),
+        name: m.name ?? slug,
+        description: m.description ?? '',
+        icon: m.icon ?? '🧩',
+        tags: m.tags ?? [],
+        dataMode: m.dataMode ?? 'personal',
+        hidden: !!m.hidden,
+        createdAt: m.createdAt ?? null,
+        updatedAt: m.updatedAt ?? null,
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'it'))
+  fs.writeFileSync(path.join(APPS_DIR, DASHBOARD, 'src', 'apps.generated.json'), JSON.stringify(manifest, null, 2) + '\n')
+  return manifest
+}
+
 export function baseFor(slug) {
   return slug === DASHBOARD ? '/' : `/${slug}/`
 }
@@ -48,6 +72,8 @@ export function viteConfigFor(slug, { mode = 'production' } = {}) {
     define: {
       __APP_SLUG__: JSON.stringify(slug),
       __APP_NAME__: JSON.stringify(meta.name ?? slug),
+      // 'personal' | 'shared' | 'mixed': quali spazi di dati usa l'app (CONVENTIONS.md)
+      __APP_DATA_MODE__: JSON.stringify(meta.dataMode ?? 'personal'),
     },
     server: { fs: { allow: [ROOT] } },
     build: {

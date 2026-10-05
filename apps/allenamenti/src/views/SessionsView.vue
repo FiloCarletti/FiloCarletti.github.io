@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { supabase, unwrap, toast } from '@shared'
+import { supabase, unwrap, toast, useSpace } from '@shared'
 import { T } from '../db.js'
 import { useData } from '../store.js'
 import SessionCard from '../components/SessionCard.vue'
@@ -9,6 +9,7 @@ import { sortCats } from '../lib/categories.js'
 import { fmtKg, fmtLong, fmtMonth, fmtNum } from '../lib/metrics.js'
 
 const { state, sessions, history, load, reload } = useData()
+const { canWrite } = useSpace()
 const route = useRoute()
 const router = useRouter()
 onMounted(load)
@@ -112,7 +113,7 @@ const reset = () => router.replace({ query: {} })
 
     <div class="row-between">
       <span class="muted small">{{ filtered.length }} allenament{{ filtered.length === 1 ? 'o' : 'i' }}<template v-if="ex || cat || q"> · <a href="#" @click.prevent="reset">azzera filtri</a></template></span>
-      <RouterLink to="/importa" class="btn btn-ghost btn-sm">Importa da foglio</RouterLink>
+      <RouterLink v-if="canWrite" to="/importa" class="btn btn-ghost btn-sm">Importa da foglio</RouterLink>
     </div>
 
     <div v-if="state.loading && !state.loaded" class="card empty"><div class="spinner" style="margin: 0 auto" /></div>
@@ -122,7 +123,7 @@ const reset = () => router.replace({ query: {} })
     </div>
     <div v-else-if="!sessions.length" class="card empty stack" style="align-items: center">
       <p style="margin: 0">Nessun allenamento ancora.</p>
-      <div class="row" style="justify-content: center">
+      <div v-if="canWrite" class="row" style="justify-content: center">
         <RouterLink to="/importa" class="btn">Importa dal foglio Google</RouterLink>
         <RouterLink to="/allenamenti/nuovo" class="btn btn-primary">Registra il primo</RouterLink>
       </div>

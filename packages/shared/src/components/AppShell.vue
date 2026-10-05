@@ -1,5 +1,6 @@
 <script setup>
 import { useAuth } from '../auth.js'
+import SpaceBar from './SpaceBar.vue'
 
 defineProps({
   title: { type: String, required: true },
@@ -27,6 +28,7 @@ const { email, avatar, signOut } = useAuth()
       </div>
     </header>
     <main class="shell-main">
+      <SpaceBar v-if="back" />
       <slot />
     </main>
   </div>

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { supabase, unwrap, toast } from '@shared'
+import { supabase, unwrap, toast, useSpace } from '@shared'
 import { T } from '../db.js'
 import { useData } from '../store.js'
 import { CATEGORIE, UNITA } from '../lib/categories.js'
@@ -10,6 +10,7 @@ import { fmtLong, fmtShort } from '../lib/metrics.js'
 
 const { state, load, reload } = useData()
 const router = useRouter()
+const { spaceId, canWrite } = useSpace()
 onMounted(load)
 
 // L'URL del foglio resta solo in questo browser (la repo è pubblica: niente link nel codice).
@@ -66,16 +67,16 @@ async function doImport() {
     const ids = new Map(state.esercizi.map((e) => [e.nome.toLowerCase(), e.id]))
     if (usedNew.value.length) {
       const created = unwrap(await supabase.from(T.esercizi)
-        .insert(usedNew.value.map(({ nome, categoria, unita }) => ({ nome, categoria, unita })))
+        .insert(usedNew.value.map(({ nome, categoria, unita }) => ({ space_id: spaceId.value, nome, categoria, unita })))
         .select('id, nome'))
       for (const e of created) ids.set(e.nome.toLowerCase(), e.id)
     }
     const created = unwrap(await supabase.from(T.sessioni)
-      .insert(toImport.value.map((s) => ({ data: s.data })))
+      .insert(toImport.value.map((s) => ({ space_id: spaceId.value, data: s.data })))
       .select('id, data'))
     const sid = new Map(created.map((s) => [s.data, s.id]))
     const voci = toImport.value.flatMap((s) => s.voci.map(({ nomeKey, ...v }, i) => ({
-      ...v, ordine: i, sessione_id: sid.get(s.data), esercizio_id: ids.get(nomeKey),
+      ...v, space_id: spaceId.value, ordine: i, sessione_id: sid.get(s.data), esercizio_id: ids.get(nomeKey),
     })))
     unwrap(await supabase.from(T.voci).insert(voci))
     await reload()
@@ -90,7 +91,10 @@ async function doImport() {
 </script>
 
 <template>
-  <div class="stack" style="gap: 16px">
+  <div v-if="!canWrite" class="card empty">
+    Questi dati sono in sola lettura: non puoi importare qui. <RouterLink to="/allenamenti">Torna alla lista</RouterLink>
+  </div>
+  <div v-else class="stack" style="gap: 16px">
     <div>
       <RouterLink to="/allenamenti" class="small">← Allenamenti</RouterLink>
       <h2 style="margin: 4px 0 4px">Importa allenamenti</h2>

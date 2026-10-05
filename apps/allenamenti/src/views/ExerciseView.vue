@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { supabase, unwrap, toast } from '@shared'
+import { supabase, unwrap, toast, useSpace } from '@shared'
 import { T } from '../db.js'
 import { useData } from '../store.js'
 import ChartBox from '../components/ChartBox.vue'
@@ -12,6 +12,7 @@ import { fmtAgo, fmtKg, fmtNum, fmtPct, fmtShort, fmtVoce, parseISO } from '../l
 import { accent, accent2 } from '../lib/theme.js'
 
 const { state, esById, history, load, reload } = useData()
+const { canWrite } = useSpace()
 const route = useRoute()
 const router = useRouter()
 load()
@@ -182,11 +183,11 @@ async function remove() {
       </div>
       <div class="row">
         <RouterLink :to="`/allenamenti?esercizio=${ex.id}`" class="btn btn-sm">Allenamenti</RouterLink>
-        <button class="btn btn-sm" @click="editing = !editing">{{ editing ? 'Chiudi' : 'Modifica' }}</button>
+        <button v-if="canWrite" class="btn btn-sm" @click="editing = !editing">{{ editing ? 'Chiudi' : 'Modifica' }}</button>
       </div>
     </div>
 
-    <form v-if="editing" class="card stack" @submit.prevent="saveEdit">
+    <form v-if="editing && canWrite" class="card stack" @submit.prevent="saveEdit">
       <div class="edit-grid">
         <label class="field"><span>Nome</span><input v-model="edit.nome" class="input" required /></label>
         <label class="field">

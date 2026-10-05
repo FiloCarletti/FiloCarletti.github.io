@@ -1,19 +1,20 @@
 // Dati dell'app caricati una volta e condivisi dalle viste.
 // Il volume è piccolo (centinaia di righe): si carica tutto e si calcola lato client.
 import { computed, reactive } from 'vue'
-import { supabase, unwrap, toast } from '@shared'
+import { supabase, unwrap, toast, useSpace } from '@shared'
 import { T } from './db.js'
 import { bestScore, e1rm, reps, volume } from './lib/metrics.js'
 import { sortCats } from './lib/categories.js'
 
 const state = reactive({ esercizi: [], sessioni: [], voci: [], loading: false, loaded: false, error: null })
 let pending = null
+const { spaceId } = useSpace()
 
 async function fetchAll(table) {
   const out = []
   const size = 1000
   for (let from = 0; ; from += size) {
-    const rows = unwrap(await supabase.from(table).select('*').order('id').range(from, from + size - 1))
+    const rows = unwrap(await supabase.from(table).select('*').eq('space_id', spaceId.value).order('id').range(from, from + size - 1))
     out.push(...rows)
     if (rows.length < size) return out
   }
