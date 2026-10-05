@@ -1,0 +1,25 @@
+{
+  "name": "filocarletti-pages",
+  "private": true,
+  "type": "module",
+  "description": "Mini-app personali Vue + Supabase pubblicate su GitHub Pages",
+  "scripts": {
+    "build": "node scripts/build-all.mjs",
+    "build:one": "node scripts/build-all.mjs --only",
+    "dev": "node scripts/dev.mjs",
+    "new-app": "node scripts/new-app.mjs",
+    "preview": "vite preview --outDir dist --base / --port 4173"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.9",
+    "vite": "^8.3.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
