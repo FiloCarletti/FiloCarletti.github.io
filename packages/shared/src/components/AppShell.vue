@@ -40,6 +40,9 @@ const shownOwners = computed(() => owners.value.slice(0, 3))
       </div>
       <div class="shell-right">
         <slot name="actions" />
+        <button v-if="canManage" class="btn btn-ghost btn-icon" title="Condividi" aria-label="Condividi" @click="sheet = true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4"/><path d="m15.4 6.5-6.8 4"/></svg>
+        </button>
         <template v-if="session">
           <img v-if="avatar" :src="avatar" :alt="email" :title="email" class="avatar" referrerpolicy="no-referrer" />
           <button class="btn btn-ghost btn-sm" @click="signOut">Esci</button>

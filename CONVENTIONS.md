@@ -12,7 +12,7 @@ Le skill `pages-app-create` e `pages-app-update` lo leggono prima di iniziare.
 | Deploy | `.github/workflows/deploy.yml`: a ogni push su `main` esegue `npm run build` e pubblica `dist/` su Pages |
 | Database | Supabase, progetto **FiloCarletti's Project** (`jpqjsvmmgsyeohsunrzk`, eu-west-1), **condiviso da tutte le app** |
 | Login | Google OAuth via Supabase Auth, una sessione unica per tutte le app (stessa origine) |
-| Accesso | Login solo per le email in `private.allowed_emails` (hook di registrazione). Ogni utente apre solo le app abilitate (`private.app_grants`; gli admin tutte). I dati stanno in **spazi** (vedi sotto). Si gestisce tutto dalla pagina **Accessi** della dashboard |
+| Accesso | Login solo per le email in `private.allowed_emails` (hook di registrazione). Ogni utente apre solo le app abilitate (`private.app_grants`; gli admin tutte). I dati stanno in **spazi** (vedi sotto). Utenti e app abilitate: pagina **Accessi** (admin); condivisione dei dati: pagina **Condivisioni** (ognuno per i propri) |
 
 ```
 apps/
@@ -41,24 +41,24 @@ scripts/                # build-all, dev, new-app
 6. **Segreti**: nel codice c'è solo la publishable key (pubblica per design). Mai service_role/secret key, mai token o password nel repo (è pubblico).
 7. **Metadati**: aggiorna `app.json` (`description`, `tables`, `updatedAt`) a ogni modifica: la dashboard si rigenera da lì.
 8. **Spazi**: `const { spaceId, canWrite } = useSpace()`. Ogni select filtra `.eq('space_id', spaceId.value)`, ogni insert mette `space_id: spaceId.value`, i comandi di modifica stanno sotto `v-if="canWrite"`. Lo spazio sta nell'URL (`#/percorso?space=<id>`, più `&k=<token>` per il link pubblico): il router lo conserva da solo e un cambio di spazio ricarica la pagina, quindi basta leggere i dati al mount. Senza `space` si apre lo spazio personale. `AuthGate` mostra l'app solo dopo aver verificato l'accesso; `AppShell` mostra sotto il titolo i proprietari dello spazio ("Tu", "Tu e Marco", "Marco e altri 2") e, cliccandoli, il pannello di condivisione. Non servono selettori di spazio nelle viste: i dati altrui si aprono dalla Community della dashboard o da un link.
-9. **`dataMode`** in `app.json`: `personal` (ognuno i suoi dati, es. allenamenti), `shared` (dati unici per tutti gli abilitati, es. lista della spesa: all'admin viene creato uno spazio "Condiviso"), `mixed` (personale + spazi condivisi, es. spese con "conto comune"). In tutti i casi l'admin può creare spazi condivisi e condividere quelli personali in lettura o modifica.
+9. **`dataMode`** in `app.json`: `personal` (ognuno i suoi dati, es. allenamenti), `shared` (dati unici per tutti gli abilitati, es. lista della spesa: a chi apre l'app senza avere spazi ne viene creato uno "Condiviso" da condividere), `mixed` (personale + spazi condivisi, es. spese con "conto comune"). In tutti i casi chiunque abbia l'app abilitata può creare spazi condivisi e condividere i propri in lettura o modifica.
 
 ## Permessi e spazi
 
 | Oggetto | Dove | Significato |
 |---|---|---|
-| Utente | `private.allowed_emails` (`is_admin`, `display_name`) | Può fare login. Gli admin vedono tutte le app e gestiscono gli accessi |
+| Utente | `private.allowed_emails` (`is_admin`, `display_name`) | Può fare login. Gli admin vedono tutte le app e decidono chi entra e quali app usa, ma **non** gestiscono i dati altrui |
 | Accesso app | `private.app_grants (app_slug, email)` | L'utente vede e apre l'app |
-| Spazio | `private.spaces (app_slug, kind, name, owner_id)` | Contenitore dei dati. `personal`: uno per utente e app, creato al primo accesso. `shared`: creato dall'admin |
+| Spazio | `private.spaces (app_slug, kind, name, owner_id)` | Contenitore dei dati. `personal`: uno per utente e app, creato al primo accesso. `shared`: creato da chiunque abbia l'app abilitata (RPC `space_create`) |
 | Membro | `private.space_members (space_id, email, role)` | `viewer` legge, `editor` legge, scrive ed è co-proprietario. Il titolare (`owner_id`) ha sempre tutti i permessi |
 | Link pubblico | `private.spaces.link_token` | Chi ha il link (`&k=<token>`) legge lo spazio anche senza login |
 
 - **Proprietari** = titolare + editor: gestiscono membri e link pubblico (RPC `space_share`, `space_set_link`). Chiunque può uscire da uno spazio condiviso con lui. Si condivide solo con email già in `allowed_emails`.
 - Un membro vede lo spazio anche se l'app non gli è abilitata: l'abilitazione serve per avere dati propri in quell'app.
-- Le tabelle `private.*` non sono esposte: si usano solo tramite RPC (`my_spaces`, `space_info`, `my_community`, `my_apps`, `admin_*`).
+- Le tabelle `private.*` non sono esposte: si usano solo tramite RPC (`my_spaces`, `space_info`, `my_shares`, `my_community`, `my_apps`, `space_*`, `admin_*`).
 - Le policy delle tabelle delle app usano `public.readable_space_ids()` e `public.writable_space_ids()`. Il link pubblico passa dall'header `x-space-token` (lo manda il client condiviso): `anon` legge solo lo spazio di cui conosce il token.
-- L'admin non vede automaticamente i dati personali altrui: deve aggiungersi come membro, in modo visibile.
-- Per dare accesso a qualcuno: dashboard → **Accessi** → aggiungi l'email, abilita le app, e se serve condividi uno spazio.
+- Nessuno, admin compreso, può leggere o condividere i dati di altri senza che glieli condividano i proprietari.
+- Per dare accesso a qualcuno: dashboard → **Accessi** → aggiungi l'email e abilita le app. I dati li condivide chi li possiede: dashboard → **Condivisioni**, oppure il pulsante "Condividi" nell'header dell'app.
 
 ## Regole per il database (condiviso)
 
@@ -119,4 +119,4 @@ Login da localhost: in Supabase → Authentication → URL Configuration deve es
 - Il codice e la publishable key sono pubblici; chiunque può chiamare le API Supabase.
 - Ma ogni tabella ha RLS: si leggono solo gli spazi propri, quelli condivisi con sé o quelli di cui si ha il link pubblico (token segreto); si scrive solo dove si è titolari o editor.
 - L'hook `before-user-created` impedisce perfino la registrazione di altri account.
-- Per dare accesso a qualcuno: pagina **Accessi** della dashboard (oppure le RPC `admin_*`). Se il progetto Google OAuth è in modalità "Testing", l'email va aggiunta anche ai *Test users* in Google Cloud Console.
+- Per dare accesso a qualcuno: pagina **Accessi** della dashboard (oppure le RPC `admin_*`); i dati poi li condivide chi li possiede. Se il progetto Google OAuth è in modalità "Testing", l'email va aggiunta anche ai *Test users* in Google Cloud Console.

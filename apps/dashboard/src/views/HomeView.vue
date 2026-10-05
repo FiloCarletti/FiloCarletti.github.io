@@ -138,9 +138,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
       </section>
 
-      <section v-if="!q && !tag" aria-labelledby="community" class="stack" style="gap: 10px">
+      <section v-if="!q && !tag && friends.length" aria-labelledby="community" class="stack" style="gap: 10px">
         <h3 id="community" class="section-title" style="margin: 0">Community</h3>
-        <div v-if="friends.length" class="friends">
+        <div class="friends">
           <RouterLink v-for="f in friends" :key="f.email" :to="`/amici/${encodeURIComponent(f.email)}`" class="card friend">
             <Avatar :name="f.name" :src="f.avatar" :size="44" />
             <div style="min-width: 0">
@@ -152,7 +152,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </div>
           </RouterLink>
         </div>
-        <p v-else class="card empty small" style="margin: 0">Quando qualcuno condivide con te i suoi dati, lo trovi qui.</p>
       </section>
     </template>
   </div>
