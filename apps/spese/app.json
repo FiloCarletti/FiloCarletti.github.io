@@ -1,0 +1,16 @@
+{
+  "name": "Spese",
+  "description": "Entrate e uscite per conto e categoria: inserimento rapido, import CSV, riclassificazione da descrizione, statistiche per periodo e conti condivisi",
+  "icon": "💶",
+  "dataMode": "mixed",
+  "tables": [
+    "spese_categorie",
+    "spese_movimenti"
+  ],
+  "tags": [
+    "finanza",
+    "statistiche"
+  ],
+  "createdAt": "2026-10-05",
+  "updatedAt": "2026-10-05"
+}
