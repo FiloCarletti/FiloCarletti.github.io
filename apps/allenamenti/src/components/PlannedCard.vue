@@ -35,9 +35,12 @@ const FONTI = { claude: '✨ Claude', json: 'JSON', manuale: 'A mano' }
           <span v-if="started" class="badge">{{ session.done }}/{{ session.voci.length }} confermati</span>
         </div>
       </div>
-      <RouterLink :to="`/allenamenti/${session.id}/svolgi`" class="btn btn-sm" :class="{ 'btn-primary': canWrite }">
-        {{ !canWrite ? 'Apri' : started ? 'Continua' : 'Inizia' }}
-      </RouterLink>
+      <div class="row" style="gap: 2px; flex-wrap: nowrap">
+        <RouterLink v-if="canWrite && !compact" :to="`/allenamenti/${session.id}/svolgi`" class="btn btn-ghost btn-sm" title="Vedi e modifica l'elenco degli esercizi">Elenco</RouterLink>
+        <RouterLink :to="`/allenamenti/${session.id}/${canWrite ? 'guida' : 'svolgi'}`" class="btn btn-sm" :class="{ 'btn-primary': canWrite }">
+          {{ !canWrite ? 'Apri' : started ? '▶ Continua' : '▶ Inizia' }}
+        </RouterLink>
+      </div>
     </header>
 
     <ul v-if="!compact" class="voci">

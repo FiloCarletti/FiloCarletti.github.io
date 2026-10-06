@@ -5,6 +5,8 @@ import { supabase, unwrap, toast, todayISO, useSpace } from '@shared'
 import { T } from '../db.js'
 import { dropLocal, putLocal, useData } from '../store.js'
 import { CATEGORIE, UNITA, guessCategory, guessUnit } from '../lib/categories.js'
+import { hasInfo } from '../lib/guide.js'
+import ExerciseInfo from '../components/ExerciseInfo.vue'
 import { fmtLong, fmtNum, fmtShort, fmtVoce } from '../lib/metrics.js'
 
 // Allenamento programmato: si conferma un esercizio alla volta (com'è o con i valori reali),
@@ -251,8 +253,9 @@ const editable = (r) => canWrite.value && (r.stato === 'da_fare' || r.open)
   </div>
 
   <div v-else class="stack" style="gap: 14px">
-    <div>
+    <div class="row-between">
       <RouterLink to="/allenamenti" class="small">← Allenamenti</RouterLink>
+      <RouterLink v-if="canWrite && pending.length" :to="`/allenamenti/${route.params.id}/guida`" class="btn btn-primary btn-sm">▶ Allenamento guidato</RouterLink>
     </div>
 
     <div class="card stack" style="gap: 10px">
@@ -295,6 +298,10 @@ const editable = (r) => canWrite.value && (r.stato === 'da_fare' || r.open)
           <span v-if="r.piano.esercizio && r.piano.esercizio.toLowerCase() !== r.nome.trim().toLowerCase()" class="muted"> · era {{ r.piano.esercizio }}</span>
         </div>
         <div v-else class="small muted">Aggiunto da te</div>
+        <details v-if="hasInfo(existing(r))" class="scheda small">
+          <summary>ℹ️ Scheda dell'esercizio</summary>
+          <ExerciseInfo :info="existing(r)" style="margin-top: 8px" />
+        </details>
 
         <div v-if="r.nome.trim() && !existing(r)" class="nuovo">
           <span class="badge badge-primary">Nuovo esercizio</span>
@@ -383,6 +390,7 @@ const editable = (r) => canWrite.value && (r.stato === 'da_fare' || r.open)
 .riga-top { display: flex; align-items: center; gap: 8px; }
 .idx { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: .78rem; display: grid; place-items: center; flex-shrink: 0; }
 .plan { padding: 6px 10px; border-radius: 8px; background: var(--surface-2); }
+.scheda summary { cursor: pointer; color: var(--primary); }
 .nuovo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .select-sm, .input-sm { padding: 6px 9px; font-size: .88rem; width: auto; }
 .input-sm { width: 100%; }

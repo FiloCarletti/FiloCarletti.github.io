@@ -7,6 +7,8 @@ import { useData } from '../store.js'
 import ChartBox from '../components/ChartBox.vue'
 import StatTile from '../components/StatTile.vue'
 import CatDot from '../components/CatDot.vue'
+import ExerciseInfo from '../components/ExerciseInfo.vue'
+import { hasInfo } from '../lib/guide.js'
 import { CATEGORIE, UNITA } from '../lib/categories.js'
 import { fmtAgo, fmtKg, fmtNum, fmtPct, fmtShort, fmtVoce, parseISO } from '../lib/metrics.js'
 import { accent, accent2 } from '../lib/theme.js'
@@ -111,20 +113,29 @@ const volumeOpts = { plugins: { legend: { display: false } } }
 
 /* ---------- modifica / unisci / elimina ---------- */
 const editing = ref(false)
-const edit = reactive({ nome: '', categoria: '', unita: 'rip', note: '' })
+const edit = reactive({ nome: '', categoria: '', unita: 'rip', note: '', esecuzione: '', attenzione: '', scopo: '', muscoli: '', recupero_sec: '' })
 const mergeInto = ref('')
 const busy = ref(false)
-watch(ex, (e) => e && Object.assign(edit, { nome: e.nome, categoria: e.categoria, unita: e.unita, note: e.note ?? '' }), { immediate: true })
+watch(ex, (e) => e && Object.assign(edit, {
+  nome: e.nome, categoria: e.categoria, unita: e.unita, note: e.note ?? '',
+  esecuzione: e.esecuzione ?? '', attenzione: e.attenzione ?? '', scopo: e.scopo ?? '',
+  muscoli: (e.muscoli ?? []).join(', '), recupero_sec: e.recupero_sec ?? '',
+}), { immediate: true })
 
 const catOptions = computed(() => [...new Set([...CATEGORIE, ...state.esercizi.map((e) => e.categoria)])])
 const others = computed(() => state.esercizi.filter((e) => e.id !== route.params.id).sort((a, b) => a.nome.localeCompare(b.nome, 'it')))
 
 async function saveEdit() {
   if (!edit.nome.trim()) return toast.error('Il nome non può essere vuoto.')
+  const rec = String(edit.recupero_sec).trim() === '' ? null : Number(edit.recupero_sec)
+  if (rec != null && !(Number.isInteger(rec) && rec >= 0 && rec <= 900)) return toast.error('Il recupero va da 0 a 900 secondi.')
+  const muscoli = edit.muscoli.split(',').map((m) => m.trim()).filter(Boolean)
   busy.value = true
   try {
     unwrap(await supabase.from(T.esercizi).update({
       nome: edit.nome.trim(), categoria: edit.categoria.trim() || 'Altro', unita: edit.unita, note: edit.note.trim() || null,
+      esecuzione: edit.esecuzione.trim() || null, attenzione: edit.attenzione.trim() || null, scopo: edit.scopo.trim() || null,
+      muscoli: muscoli.length ? muscoli : null, recupero_sec: rec,
     }).eq('id', ex.value.id))
     await reload()
     editing.value = false
@@ -200,7 +211,15 @@ async function remove() {
           <select v-model="edit.unita" class="select"><option v-for="u in UNITA" :key="u.value" :value="u.value">{{ u.label }}</option></select>
         </label>
       </div>
-      <label class="field"><span>Note (tecnica, regolazioni macchina…)</span><textarea v-model="edit.note" class="textarea" style="min-height: 60px" /></label>
+      <label class="field"><span>Note (regolazioni macchina, varianti…)</span><textarea v-model="edit.note" class="textarea" style="min-height: 60px" /></label>
+      <span class="label">Scheda dell'esercizio (la vedi durante l'allenamento guidato)</span>
+      <label class="field"><span>Come si esegue</span><textarea v-model="edit.esecuzione" class="textarea" style="min-height: 70px" placeholder="Posizione di partenza, movimento, respirazione…" /></label>
+      <label class="field"><span>A cosa stare attento</span><textarea v-model="edit.attenzione" class="textarea" style="min-height: 60px" placeholder="Errori comuni, sicurezza…" /></label>
+      <label class="field"><span>Perché lo fai</span><textarea v-model="edit.scopo" class="textarea" style="min-height: 60px" placeholder="A cosa serve, cosa allena…" /></label>
+      <div class="edit-grid">
+        <label class="field"><span>Muscoli (separati da virgola)</span><input v-model="edit.muscoli" class="input" placeholder="quadricipiti, glutei" /></label>
+        <label class="field"><span>Recupero tra le serie (s)</span><input v-model="edit.recupero_sec" inputmode="numeric" class="input" placeholder="automatico" /></label>
+      </div>
       <div class="row" style="justify-content: flex-end"><button class="btn btn-primary" :disabled="busy">Salva</button></div>
 
       <hr class="sep" />
@@ -216,6 +235,18 @@ async function remove() {
       </div>
       <button v-if="!h.length" type="button" class="btn btn-danger" style="align-self: flex-start" @click="remove">Elimina esercizio</button>
     </form>
+
+    <section v-if="hasInfo(ex) && !editing" class="card stack" style="gap: 10px">
+      <div class="row-between">
+        <h2 style="margin: 0">Scheda</h2>
+        <span v-if="ex.recupero_sec" class="badge">recupero {{ ex.recupero_sec }}″</span>
+      </div>
+      <ExerciseInfo :info="ex" />
+    </section>
+    <div v-else-if="canWrite && !editing" class="card empty small">
+      Nessuna scheda: <a href="#" @click.prevent="editing = true">scrivila tu</a>, oppure chiedi a Claude di prepararla
+      (la aggiunge quando usa l'esercizio in un allenamento).
+    </div>
 
     <div v-if="!kpi" class="card empty">Ancora nessun allenamento con questo esercizio.</div>
 

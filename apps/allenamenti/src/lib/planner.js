@@ -3,16 +3,40 @@
 import { CATEGORIE, guessCategory, guessUnit, normCat } from './categories.js'
 import { canonicalName } from './importer.js'
 import { fmtVoce } from './metrics.js'
+import { hasInfo } from './guide.js'
 
 export const ESEMPIO = {
   data: '2026-10-07',
   titolo: 'Gambe + core',
-  note: 'Perché: squat +2,5 kg rispetto all\'ultima volta (RPE 7).',
+  note: 'Perché: squat +2,5 kg rispetto all\'ultima volta (RPE 7); hip thrust nuovo per rinforzare i glutei.',
   esercizi: [
-    { nome: 'Squat', serie: 4, ripetizioni: 6, peso_kg: 62.5, rpe: 8 },
-    { nome: 'Plank', serie: 3, ripetizioni: 45, note: 'secondi' },
+    { nome: 'Squat', serie: 4, ripetizioni: 6, peso_kg: 62.5, rpe: 8, recupero_sec: 150 },
+    {
+      nome: 'Hip thrust', categoria: 'Forza gambe', unita: 'rip', serie: 3, ripetizioni: 10, peso_kg: 40, recupero_sec: 90,
+      descrizione: {
+        esecuzione: 'Schiena appoggiata alla panca sotto le scapole, bilanciere sulle anche, piedi alla larghezza delle spalle. Spingi il bacino in alto fino ad allineare busto e cosce, stringi i glutei 1″ e scendi controllato.',
+        attenzione: 'Non inarcare la zona lombare in alto: guarda avanti e tieni il mento basso. Usa un cuscinetto sul bilanciere.',
+        scopo: 'Glutei forti e spinta d\'anca: aiuta salti e sprint e protegge le ginocchia.',
+        muscoli: ['glutei', 'femorali', 'core'],
+      },
+    },
+    { nome: 'Plank', serie: 3, ripetizioni: 45, recupero_sec: 45 },
     { nome: 'Cyclette', durata_min: 15 },
   ],
+}
+
+/** Scheda dell'esercizio dal JSON (nomi di campo in italiano o inglese); null se vuota. */
+function normInfo(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const muscoli = pick(raw, 'muscoli', 'muscles')
+  const info = {
+    esecuzione: pick(raw, 'esecuzione', 'come', 'execution', 'how') ?? null,
+    attenzione: pick(raw, 'attenzione', 'attenzioni', 'errori', 'cautions', 'warnings') ?? null,
+    scopo: pick(raw, 'scopo', 'perche', 'perché', 'purpose', 'why') ?? null,
+    muscoli: Array.isArray(muscoli) ? muscoli.map(String).filter(Boolean)
+      : typeof muscoli === 'string' ? muscoli.split(',').map((m) => m.trim()).filter(Boolean) : [],
+  }
+  return hasInfo(info) ? info : null
 }
 
 /** Estrae il JSON da un testo: JSON puro, blocco ```json``` o testo con un oggetto/array dentro. */
@@ -77,7 +101,10 @@ export function normalizePlan(raw, { known = [], today }) {
         durata_min: toNum(pick(x, 'durata_min', 'minuti', 'min')),
         distanza_km: toNum(pick(x, 'distanza_km', 'km')),
         note,
+        recupero_sec: toNum(pick(x, 'recupero_sec', 'recupero', 'rest_sec', 'rest')),
+        descrizione: normInfo(pick(x, 'descrizione', 'scheda', 'description')),
       }
+      if (v.recupero_sec != null && (v.recupero_sec < 0 || v.recupero_sec > 900)) v.recupero_sec = null
       if (v.rpe != null && (v.rpe < 1 || v.rpe > 10)) { errors.push(`${nome}: RPE ${v.rpe} fuori da 1–10, ignorato.`); v.rpe = null }
       if (ex) return { ...v, esercizio: ex, unita: ex.unita }
       const unitaRaw = pick(x, 'unita', 'unit')
@@ -124,7 +151,12 @@ export function buildPrompt({ sessions, history, esercizi, planned, request, dat
   lines.push('- usa esattamente i nomi degli esercizi che conosco (elenco sotto) quando possibile;')
   lines.push('- esercizi a tempo (misura "sec"): "ripetizioni" sono i secondi per serie; cardio: "durata_min" e/o "distanza_km";')
   lines.push(`- per un esercizio nuovo aggiungi "categoria" (una tra: ${CATEGORIE.join(', ')}) e "unita" ("rip", "sec" o "cardio");`)
-  lines.push('- "rpe" è lo sforzo obiettivo (1–10); "note" dell\'allenamento: il perché delle scelte, in 1–3 frasi.')
+  lines.push('- "rpe" è lo sforzo obiettivo (1–10); "recupero_sec" il recupero tra le serie;')
+  lines.push('- "note" dell\'allenamento: il perché delle scelte, in 1–3 frasi;')
+  lines.push('- per ogni esercizio NUOVO (aggiungine solo se serve davvero) presentalo nel dettaglio nella spiegazione e aggiungi')
+  lines.push('  "descrizione": { "esecuzione", "attenzione", "scopo", "muscoli": [...] } come nell\'esempio: la salvo nella scheda dell\'esercizio.')
+  const noInfo = esercizi.filter((e) => !hasInfo(e) && (history.get(e.id) ?? []).length).map((e) => e.nome)
+  if (noInfo.length) lines.push(`- questi esercizi non hanno ancora una scheda: se li metti nel piano, aggiungi anche per loro "descrizione": ${noInfo.join(', ')}.`)
   lines.push('')
 
   lines.push('Esercizi che conosco (nome · categoria · misura · ultima volta · migliore):')

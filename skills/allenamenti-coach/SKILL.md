@@ -55,8 +55,9 @@ join public.allenamenti_esercizi e on e.id = v.esercizio_id
 where s.space_id = ':space' and s.stato = 'fatto' and s.data >= current_date - 84
 order by s.data desc, v.ordine;
 
--- Catalogo esercizi con frequenza, carico massimo e ultima volta
-select e.nome, e.categoria, e.unita, count(v.id) as volte, max(v.peso_kg) as max_kg, max(s.data) as ultima
+-- Catalogo esercizi con frequenza, carico massimo, ultima volta, recupero e se hanno già una scheda
+select e.nome, e.categoria, e.unita, count(v.id) as volte, max(v.peso_kg) as max_kg, max(s.data) as ultima,
+       e.recupero_sec, (e.esecuzione is not null or e.attenzione is not null or e.scopo is not null) as ha_scheda
 from public.allenamenti_esercizi e
 left join public.allenamenti_voci v on v.esercizio_id = e.id and v.stato = 'fatto'
 left join public.allenamenti_sessioni s on s.id = v.sessione_id and s.stato = 'fatto'
@@ -92,7 +93,18 @@ scegli tu in base allo storico. Criteri:
   sistematicamente di più, alza i piani; se fa di meno o salta, abbassali.
 - **Struttura**: 4–7 esercizi, dai multiarticolari/esplosivi ai complementari, core o cardio in fondo;
   stima la durata (≈ 2–3 min per serie con recupero).
-- **Nomi**: usa *esattamente* i nomi del catalogo; un esercizio nuovo solo se serve, con `categoria` e `unita`.
+- **Recupero**: per ogni esercizio con serie indica `recupero_sec` (forza pesante 120–180, ipertrofia 60–90,
+  pliometria 90–120, core 30–60). Nell'app parte un timer di recupero dopo ogni serie.
+- **Nomi**: usa *esattamente* i nomi del catalogo. Aggiungi un esercizio nuovo solo se serve davvero, con
+  `categoria`, `unita` e la **scheda** (vedi sotto).
+- **Schede**: per ogni esercizio nuovo, e per quelli del piano con `ha_scheda = false`, aggiungi `descrizione`:
+  - `esecuzione`: posizione di partenza, movimento, ritmo e respirazione (2–4 frasi concrete);
+  - `attenzione`: errori comuni e sicurezza (ginocchia, schiena, carico);
+  - `scopo`: perché lo fai, legato agli obiettivi che si vedono nello storico (es. salto, forza delle gambe);
+  - `muscoli`: elenco dei muscoli principali, in italiano e in minuscolo.
+
+  La scheda viene salvata nell'esercizio e Filippo la legge durante l'allenamento guidato. Per gli esercizi
+  che hanno già una scheda non serve: la funzione completa solo i campi vuoti e non sovrascrive quelli esistenti.
 - Nella `note` dell'allenamento scrivi il **perché** in 1–3 frasi (Filippo la legge in palestra).
 
 ## 4. Inserisci tra i Da fare
@@ -110,9 +122,16 @@ select public.allenamenti_pianifica(':space', $piano$
   "note": "Squat +2,5 kg: l'ultima volta 4×6 a RPE 7. Niente pliometria, l'hai fatta ieri.",
   "durata_min": 50,
   "esercizi": [
-    { "nome": "Squat", "serie": 4, "ripetizioni": 6, "peso_kg": 62.5, "rpe": 8 },
-    { "nome": "Affondi", "serie": 3, "ripetizioni": 10, "peso_kg": 12, "note": "10 per gamba" },
-    { "nome": "Plank", "serie": 3, "ripetizioni": 45 },
+    { "nome": "Squat", "serie": 4, "ripetizioni": 6, "peso_kg": 62.5, "rpe": 8, "recupero_sec": 150 },
+    { "nome": "Hip thrust", "categoria": "Forza gambe", "unita": "rip",
+      "serie": 3, "ripetizioni": 10, "peso_kg": 40, "rpe": 7, "recupero_sec": 90,
+      "descrizione": {
+        "esecuzione": "Schiena appoggiata alla panca sotto le scapole, bilanciere sulle anche, piedi alla larghezza delle spalle. Spingi il bacino in alto fino ad allineare busto e cosce, stringi i glutei 1 secondo e scendi controllato.",
+        "attenzione": "Non inarcare la zona lombare in alto: guarda avanti, mento basso. Usa un cuscinetto sul bilanciere.",
+        "scopo": "Glutei forti e spinta d'anca: aiuta salti e sprint e protegge le ginocchia.",
+        "muscoli": ["glutei", "femorali", "core"]
+      } },
+    { "nome": "Plank", "serie": 3, "ripetizioni": 45, "recupero_sec": 45 },
     { "nome": "Cyclette", "durata_min": 10 }
   ]
 }
@@ -121,14 +140,19 @@ $piano$::jsonb, 'claude');
 
 - Per più giorni passa un array di allenamenti: una sola chiamata, tutto o niente.
 - `rpe` è l'obiettivo (resta nel piano); `data` in formato `AAAA-MM-GG` (senza data: oggi).
-- Esercizio nuovo: aggiungi `"categoria"` (una delle categorie sopra) e `"unita"` (`rip`, `sec`, `cardio`).
-- La funzione restituisce gli id creati: verifica con una select che le voci siano quelle attese.
+- Esercizio nuovo: aggiungi `"categoria"` (una delle categorie sopra), `"unita"` (`rip`, `sec`, `cardio`) e `"descrizione"`.
+- Nel dollar quoting gli apostrofi vanno scritti normalmente (`d'anca`), senza escape.
+- La funzione restituisce gli id creati: verifica con una select che le voci siano quelle attese
+  e che gli esercizi nuovi abbiano la scheda (`esecuzione`, `attenzione`, `scopo`, `muscoli`, `recupero_sec`).
 
 ## 5. Rispondi
 
-Breve: tabella con esercizio, serie × ripetizioni/secondi, kg, RPE obiettivo; il perché in una o due righe;
-il link all'app (`https://filocarletti.github.io/allenamenti/#/allenamenti`), dove l'allenamento compare in
-**Da fare** con il pulsante *Inizia*.
+- Tabella con esercizio, serie × ripetizioni/secondi, kg, RPE obiettivo e recupero; il perché in una o due righe.
+- Per ogni **esercizio nuovo**, sotto la tabella, una presentazione dettagliata: come si esegue passo per passo,
+  a cosa stare attento, perché è nel piano e quali muscoli lavora (è la stessa scheda salvata nell'app).
+- Il link all'app (`https://filocarletti.github.io/allenamenti/#/allenamenti`): l'allenamento compare in
+  **Da fare**, e con *▶ Inizia* parte l'allenamento guidato (contatore delle serie, timer di recupero e degli
+  esercizi a tempo, scheda di ogni esercizio).
 
 ## Senza connettore Supabase
 

@@ -4,6 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { supabase, unwrap, toast, todayISO, useSpace } from '@shared'
 import { useData } from '../store.js'
 import CatDot from '../components/CatDot.vue'
+import ExerciseInfo from '../components/ExerciseInfo.vue'
 import { ESEMPIO, buildPrompt, extractJSON, normalizePlan, toPayload } from '../lib/planner.js'
 import { fmtLong, fmtVoce, parseISO, toISO } from '../lib/metrics.js'
 
@@ -137,6 +138,8 @@ async function save() {
           <code>serie</code>, <code>ripetizioni</code> (secondi per gli esercizi a tempo), <code>peso_kg</code>,
           <code>rpe</code> obiettivo, <code>durata_min</code>/<code>distanza_km</code> per il cardio, <code>note</code>.
           Per gli esercizi nuovi anche <code>categoria</code> e <code>unita</code> (<code>rip</code>, <code>sec</code>, <code>cardio</code>).
+          Facoltativi: <code>recupero_sec</code> (recupero tra le serie) e <code>descrizione</code> con <code>esecuzione</code>,
+          <code>attenzione</code>, <code>scopo</code> e <code>muscoli</code>, che finisce nella scheda dell'esercizio.
         </p>
         <pre class="mono example">{{ esempio }}</pre>
       </details>
@@ -158,7 +161,12 @@ async function save() {
             <span class="spacer" />
             <span class="what">{{ fmtVoce(v, v.unita) }}</span>
             <span v-if="v.rpe" class="rpe">RPE {{ v.rpe }}</span>
+            <span v-if="v.recupero_sec" class="rpe">rec. {{ v.recupero_sec }}″</span>
             <span v-if="v.note" class="note muted small">{{ v.note }}</span>
+            <details v-if="v.descrizione" class="note scheda small">
+              <summary>📖 Scheda{{ v.isNew || !v.esercizio?.esecuzione ? '' : ' (quella salvata resta: si completano solo i campi vuoti)' }}</summary>
+              <ExerciseInfo :info="v.descrizione" style="margin-top: 8px" />
+            </details>
           </li>
         </ul>
       </section>
@@ -188,5 +196,6 @@ async function save() {
 .what { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rpe { font-size: .75rem; color: var(--muted); white-space: nowrap; }
 .note { flex-basis: 100%; }
+.scheda summary { cursor: pointer; color: var(--primary); }
 .actions { justify-content: flex-end; position: sticky; bottom: 0; padding: 10px 0; background: var(--bg); border-top: 1px solid var(--border); }
 </style>

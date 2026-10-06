@@ -1,6 +1,6 @@
 {
   "name": "Allenamenti",
-  "description": "Diario degli allenamenti: sessioni, allenamenti programmati (anche con Claude) da confermare mentre ti alleni, record personali, statistiche e grafici di crescita",
+  "description": "Diario degli allenamenti: allenamenti programmati (anche con Claude) e guidati passo passo con timer, serie e recupero, schede degli esercizi, record personali, statistiche e grafici di crescita",
   "icon": "🏋️",
   "tables": [
     "allenamenti_esercizi",
@@ -12,6 +12,6 @@
     "statistiche"
   ],
   "createdAt": "2026-10-05",
-  "updatedAt": "2026-10-05",
+  "updatedAt": "2026-10-06",
   "dataMode": "personal"
 }
