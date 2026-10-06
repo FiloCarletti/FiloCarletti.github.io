@@ -34,7 +34,7 @@ export function useCatalog() {
   const usage = computed(() => new Map(state.recent.map((r) => [r.slug, r])))
   const apps = computed(() =>
     manifest
-      .filter((a) => !a.hidden && (state.admin || state.grants.includes(a.slug)))
+      .filter((a) => !a.hidden && a.kind !== 'game' && (state.admin || state.grants.includes(a.slug)))
       .map((a) => ({ ...a, lastOpened: usage.value.get(a.slug)?.at ?? null, opens: usage.value.get(a.slug)?.n ?? 0 })),
   )
   const recent = computed(() =>
@@ -48,7 +48,9 @@ export function useCatalog() {
       spaces: f.spaces.map((s) => ({ ...s, app: bySlug.get(s.app_slug) ?? { name: s.app_slug, icon: '🧩', slug: s.app_slug } })),
     })),
   )
-  return { state, apps, recent, friends, all: manifest }
+  // Giochi: niente dati sul DB, quindi niente permessi: li vede chiunque entri nella dashboard.
+  const games = manifest.filter((a) => !a.hidden && a.kind === 'game')
+  return { state, apps, recent, friends, games, all: manifest }
 }
 
 const rtf = new Intl.RelativeTimeFormat('it-IT', { numeric: 'auto' })

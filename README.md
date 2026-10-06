@@ -5,5 +5,6 @@ Mini-app personali in **Vue 3 + Supabase**, pubblicate su **GitHub Pages** da un
 - Dashboard: https://filocarletti.github.io/
 - Ogni app: `https://filocarletti.github.io/<slug>/`
 - Login con Google, accesso solo agli account autorizzati.
+- Giochi (sezione a parte della dashboard): girano solo nel browser, con salvataggi in localStorage. Il primo è [Micelio](https://filocarletti.github.io/micelio/).
 
 Regole, struttura e comandi: [CONVENTIONS.md](./CONVENTIONS.md).

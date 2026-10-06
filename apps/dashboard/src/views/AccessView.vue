@@ -38,7 +38,7 @@ async function run(fn, args, ok) {
   }
 }
 
-const apps = computed(() => all.filter((a) => !a.hidden))
+const apps = computed(() => all.filter((a) => !a.hidden && a.kind !== 'game'))
 const users = computed(() => data.value?.users ?? [])
 
 const nu = reactive({ email: '', name: '' })
