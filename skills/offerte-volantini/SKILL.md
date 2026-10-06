@@ -68,19 +68,59 @@ o al kg/litro.
 
 ## 3. Cerca nei volantini
 
-Per ogni supermercato attivo:
+I siti delle catene caricano i volantini con JavaScript, come PDF o come immagini, e gli aggregatori
+(PromoQui, Tiendeo…) bloccano l'accesso automatico: WebFetch da solo non basta. Per le catene note ci sono
+estrattori nella repo `FiloCarletti/FiloCarletti.github.io`, cartella `scripts/offerte/` (Node 20+, nessuna dipendenza).
+Lancia i comandi dalla radice della repo (clonala se non c'è).
+
+Salva prima i prodotti seguiti in un file, per i filtri degli estrattori:
+
+```sql
+select coalesce(json_agg(json_build_object('nome', nome, 'parole', parole, 'escludi', escludi, 'marca', marca)), '[]')
+from public.offerte_prodotti where space_id = ':space' and attivo;
+```
+
+→ scrivi il risultato in `prodotti.json`.
+
+### Coop (link `coopalleanza3-0.it/volantino/…/<id>-<negozio>.html`)
+
+Dati strutturati del sito, nessuna lettura di immagini:
+
+```bash
+node scripts/offerte/coop.mjs "<volantino_url>" --nome "<nome del supermercato>" --prodotti prodotti.json > coop.json
+```
+
+Stampa il JSON già pronto per il passo 4 (tutti i volantini in corso e in arrivo del negozio). Dei volantini enormi
+(oltre 150 promozioni, es. "Prezzi ribassati soci") tiene solo i prodotti seguiti. Controlla `note` e il numero di offerte.
+
+### Conad (link `conad.it/ricerca-negozi/…`)
+
+```bash
+node scripts/offerte/conad.mjs "<volantino_url>" --salta <date di inizio già registrate>
+```
+
+Elenca i volantini in corso e in arrivo del negozio (esclude manuali e cataloghi), scarica i PDF in una cartella temporanea e salva ogni pagina in PNG
+(serve `pdftoppm`, pacchetto poppler-utils, oppure `pip install pymupdf`). In `--salta` metti le date `valido_da` dei
+volantini Conad già presenti nella query del passo 2, separate da virgole: non serve rileggerli.
+
+Poi **guarda le pagine** con Read (una o più immagini per volta). Il testo estratto dai PDF Conad ha le colonne
+mescolate e i prezzi lontani dai prodotti: non usarlo. Su ogni riquadro leggi nome, marca, formato, prezzo grande,
+€/kg o €/l in piccolo, ed eventuali condizioni ("offerta riservata carta", "solo se paghi con Carta Insieme Più":
+in quel caso registra il prezzo con la carta e scrivilo nelle condizioni). Le date le dà lo script (`valido_da`, `valido_fino`).
+
+### Altri supermercati
 
 1. Se c'è `volantino_url`, parti da lì (WebFetch). Altrimenti cerca "volantino <nome> <zona>" sul web.
-   Gli aggregatori (PromoQui, DoveConviene, Tiendeo, VolantinoFacile) spesso hanno il testo delle offerte
-   più leggibile dei siti delle catene.
 2. Trova il volantino **in corso** e, se è già pubblicato, il **prossimo**: annota le date di validità.
-3. Se il volantino in corso è già tutto registrato (stesse offerte, stesse date) e non c'è un volantino nuovo,
-   non rileggerlo per intero: cerca solo i prodotti seguiti che ancora mancano.
-4. Raccogli:
-   - **tutte** le offerte che riconoscono un prodotto seguito;
-   - le offerte più convenienti delle altre, **al massimo 30 per supermercato** (sconti alti, prodotti di uso
-     comune). Lo spazio nel DB è limitato: niente elenchi completi del volantino.
-5. Se un volantino non si trova o non si legge, non inventare: scrivilo nella nota.
+3. Se trovi un PDF, scaricalo e leggi le pagine come per Conad. Se c'è solo uno sfogliatore in JavaScript, cerca le
+   chiamate dati della pagina (JSON) o scrivilo nella nota: un estrattore nuovo si può aggiungere in `scripts/offerte/`.
+
+### Cosa registrare
+
+- Coop: tutto ciò che restituisce lo script (dati strutturati, poco spazio).
+- Volantini letti dalle immagini o dal web: **tutte** le offerte che riconoscono un prodotto seguito, più le più convenienti
+  delle altre, **al massimo 30 per volantino** (sconti alti, prodotti di uso comune).
+- Se un volantino non si trova o non si legge, non inventare: scrivilo nella nota.
 
 Campi di ogni offerta:
 
@@ -93,7 +133,7 @@ Campi di ogni offerta:
 
 ## 4. Registra
 
-Una sola chiamata con tutte le offerte. In `supermercati` metti tutti quelli cercati, anche senza risultati;
+Una chiamata per supermercato (per Coop passa il contenuto di `coop.json` così com'è). In `supermercati` metti quelli cercati, anche senza risultati;
 in `note` i problemi incontrati (finiscono nel registro, visibile in *Dati* nell'app).
 Con il dollar quoting non serve fare l'escape degli apostrofi.
 

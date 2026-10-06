@@ -101,6 +101,12 @@ const esempio = JSON.stringify(ESEMPIO, null, 2)
     </div>
 
     <section v-if="mode === 'claude'" class="card stack">
+      <div class="tip small">
+        <strong>Consigliato:</strong> in Claude Code chiedi <em>“aggiorna le offerte”</em>. La skill
+        <strong>offerte-volantini</strong> legge Coop dai dati del sito e Conad dalle pagine dei PDF, e registra tutto da sola.
+        In una chat normale molti volantini non si leggono (pagine in JavaScript, PDF, immagini): se Claude non ci riesce,
+        allegagli il PDF o gli screenshot del volantino.
+      </div>
       <h3 style="margin: 0">1. Copia il prompt con i tuoi supermercati e prodotti</h3>
       <p v-if="state.loaded && !attivi.length" class="warn small">
         Non hai supermercati attivi: <RouterLink to="/supermercati">aggiungili</RouterLink> prima, così Claude sa dove cercare.
@@ -199,4 +205,5 @@ const esempio = JSON.stringify(ESEMPIO, null, 2)
 .example { margin: 0; padding: 10px; border-radius: var(--radius); background: var(--surface-2); overflow-x: auto; }
 .warn { margin: 0; padding: 8px 10px; border-radius: var(--radius); background: color-mix(in srgb, var(--warn) 14%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 30%, var(--border)); }
 .nowrap { white-space: nowrap; }
+.tip { padding: 8px 10px; border-radius: var(--radius); background: var(--primary-soft); }
 </style>

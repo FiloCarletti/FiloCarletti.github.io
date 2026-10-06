@@ -46,6 +46,7 @@ export function buildPrompt({ supermercati, prodotti, oggi, maxAltre = 30 }) {
   L.push('')
   L.push('Regole:')
   L.push('- solo offerte lette davvero nel volantino: niente prezzi stimati o inventati;')
+  L.push('- se il volantino è un PDF o fatto di immagini, leggi le pagine; se non riesci a leggerlo, dimmelo e ti allego il PDF o gli screenshot;')
   L.push('- "valido_da" e "valido_fino" in formato AAAA-MM-GG, come indicato nel volantino;')
   L.push('- "prezzo" è quello in offerta; "prezzo_pieno" solo se il volantino lo indica;')
   L.push('- "prezzo_unitario" e "unita" (kg, l o pz) se indicati o calcolabili dal formato;')
