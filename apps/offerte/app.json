@@ -1,0 +1,19 @@
+{
+  "name": "Offerte",
+  "description": "Offerte dei volantini sui prodotti che segui: cosa è in offerta oggi, domani e nei prossimi giorni, ricerca con Claude (anche automatica ogni mattina), storico prezzi e pulizia dei dati vecchi",
+  "icon": "🏷️",
+  "dataMode": "personal",
+  "tables": [
+    "offerte_supermercati",
+    "offerte_prodotti",
+    "offerte_offerte",
+    "offerte_storico",
+    "offerte_ricerche"
+  ],
+  "tags": [
+    "spesa",
+    "claude"
+  ],
+  "createdAt": "2026-10-06",
+  "updatedAt": "2026-10-06"
+}
