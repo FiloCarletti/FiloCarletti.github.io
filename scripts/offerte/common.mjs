@@ -6,7 +6,8 @@ import { compile, matches, offerText, tokens } from '../../apps/offerte/src/lib/
 export const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 
 export async function get(url, as = 'json') {
-  const res = await fetch(url, { headers: { 'user-agent': UA, accept: as === 'json' ? 'application/json' : '*/*' } })
+  // accept generico: l'API di ricerca Lidl risponde 401 a "accept: application/json".
+  const res = await fetch(url, { headers: { 'user-agent': UA, accept: '*/*' } })
   if (!res.ok) throw new Error(`${res.status} ${url}`)
   return as === 'json' ? res.json() : as === 'text' ? res.text() : Buffer.from(await res.arrayBuffer())
 }

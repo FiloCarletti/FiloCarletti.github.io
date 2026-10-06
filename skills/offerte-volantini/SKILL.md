@@ -108,6 +108,27 @@ mescolate e i prezzi lontani dai prodotti: non usarlo. Su ogni riquadro leggi no
 €/kg o €/l in piccolo, ed eventuali condizioni ("offerta riservata carta", "solo se paghi con Carta Insieme Più":
 in quel caso registra il prezzo con la carta e scrivilo nelle condizioni). Le date le dà lo script (`valido_da`, `valido_fino`).
 
+### Lidl (link `lidl.it/s/it-IT/ricerca-negozio/…`)
+
+Dati strutturati dall'API di ricerca di lidl.it (prezzo, prezzo pieno, confezione, €/kg, date in negozio):
+
+```bash
+node scripts/offerte/lidl.mjs --nome "<nome del supermercato>" --prodotti prodotti.json > lidl.json
+```
+
+Le offerte "solo in punto vendita" sono **nazionali**: il link del negozio non serve e sono uguali per tutte le sedi.
+Se ci sono più supermercati Lidl, lancia lo script **una volta sola** e registra lo stesso elenco per ogni sede,
+cambiando solo `supermercato` (in SQL: `jsonb_agg(x || '{"supermercato":"<sede>"}')` sugli elementi di `offerte`).
+Lo script tiene le offerte in corso e quelle che iniziano entro 10 giorni (`--giorni`); per ogni periodo tutte quelle
+dei prodotti seguiti più le 80 con lo sconto più alto (`--max`). Cerca per nome anche i prodotti seguiti fuori dal reparto
+alimentare (es. shampoo).
+
+Volantini regionali (es. "Sapori dell'Emilia Romagna") e pagine del volantino: l'elenco del negozio è in
+`https://endpoints.leaflets.schwarz/v4/overview/?client_locale=lidl%2Fit-IT&region_id=<regione>&store_id=<negozio>`
+(gli id li carica la pagina del negozio) e il dettaglio in `https://endpoints.leaflets.schwarz/v4/flyer?flyer_identifier=<id>`:
+ogni pagina ha l'immagine (`zoom`) e le parole chiave (`keyWords`). Servono solo se un prodotto seguito manca dall'API:
+scarica e leggi con Read solo le pagine le cui `keyWords` lo nominano.
+
 ### Altri supermercati
 
 1. Se c'è `volantino_url`, parti da lì (WebFetch). Altrimenti cerca "volantino <nome> <zona>" sul web.
@@ -117,7 +138,7 @@ in quel caso registra il prezzo con la carta e scrivilo nelle condizioni). Le da
 
 ### Cosa registrare
 
-- Coop: tutto ciò che restituisce lo script (dati strutturati, poco spazio).
+- Coop e Lidl: tutto ciò che restituiscono gli script (dati strutturati, già filtrati).
 - Volantini letti dalle immagini o dal web: **tutte** le offerte che riconoscono un prodotto seguito, più le più convenienti
   delle altre, **al massimo 30 per volantino** (sconti alti, prodotti di uso comune).
 - Se un volantino non si trova o non si legge, non inventare: scrivilo nella nota.
