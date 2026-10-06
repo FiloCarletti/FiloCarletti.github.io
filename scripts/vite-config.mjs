@@ -40,6 +40,8 @@ export function writeManifest() {
         icon: m.icon ?? '🧩',
         tags: m.tags ?? [],
         dataMode: m.dataMode ?? 'personal',
+        // 'app' (dati su Supabase, accesso con permessi) | 'game' (solo browser, visibile a tutti)
+        kind: m.kind ?? 'app',
         hidden: !!m.hidden,
         createdAt: m.createdAt ?? null,
         updatedAt: m.updatedAt ?? null,

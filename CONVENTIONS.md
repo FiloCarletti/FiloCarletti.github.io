@@ -26,6 +26,7 @@ apps/
     src/db.js           # costanti con i nomi delle tabelle (prefissate)
     src/views/*.vue
     src/components/*.vue
+  micelio/              # gioco ("kind": "game"): solo localStorage, vedi "Giochi"
 packages/shared/src/    # importato come '@shared'
 supabase/migrations/    # copia di OGNI migrazione applicata, in ordine
 scripts/                # build-all, dev, new-app
@@ -42,6 +43,16 @@ scripts/                # build-all, dev, new-app
 7. **Metadati**: aggiorna `app.json` (`description`, `tables`, `updatedAt`) a ogni modifica: la dashboard si rigenera da lì.
 8. **Spazi**: `const { spaceId, canWrite } = useSpace()`. Ogni select filtra `.eq('space_id', spaceId.value)`, ogni insert mette `space_id: spaceId.value`, i comandi di modifica stanno sotto `v-if="canWrite"`. Lo spazio sta nell'URL (`#/percorso?space=<id>`, più `&k=<token>` per il link pubblico): il router lo conserva da solo e un cambio di spazio ricarica la pagina, quindi basta leggere i dati al mount. Senza `space` si apre lo spazio personale. `AuthGate` mostra l'app solo dopo aver verificato l'accesso; `AppShell` mostra sotto il titolo i proprietari dello spazio ("Tu", "Tu e Marco", "Marco e altri 2") e, cliccandoli, il pannello di condivisione. Non servono selettori di spazio nelle viste: i dati altrui si aprono dalla Community della dashboard o da un link.
 9. **`dataMode`** in `app.json`: `personal` (ognuno i suoi dati, es. allenamenti), `shared` (dati unici per tutti gli abilitati, es. lista della spesa: a chi apre l'app senza avere spazi ne viene creato uno "Condiviso" da condividere), `mixed` (personale + spazi condivisi, es. spese con "conto comune"). In tutti i casi chiunque abbia l'app abilitata può creare spazi condivisi e condividere i propri in lettura o modifica.
+
+## Giochi
+
+Un'app con `"kind": "game"` in `app.json` è un gioco: compare nella sezione **Giochi** della dashboard, a tutti quelli che entrano (non serve abilitarlo in **Accessi**), e non usa il database.
+
+- Niente Supabase, `AuthGate`, `AppShell` né `createPagesApp`: `main.js` fa `createApp(App)` e importa `@shared/styles.css` (si possono usare `@shared/toast.js` e `@shared/components/ToastHost.vue`). L'header ha solo il link alla dashboard.
+- I progressi stanno in `localStorage` con chiavi prefissate dallo slug (`<slug>-save`…), **cifrati** (AES-GCM con Web Crypto) e in chiaro solo in debug (`npm run dev` o `?debug` nell'URL). La chiave è nel codice: la cifratura scoraggia le modifiche a mano, non protegge segreti.
+- Il gioco salva da solo (a intervalli e quando la pagina si nasconde) e alla riapertura calcola i progressi offline dall'ultimo istante simulato; prevede esporta/importa per cambiare dispositivo.
+- Logica di gioco in moduli JS puri (senza Vue né browser), così si può bilanciare con uno script Node (es. `apps/micelio/tools/simula.mjs`).
+- `app.json`: `name`, `description`, `icon`, `kind: "game"`, `tags`, `createdAt`, `updatedAt` (niente `dataMode` né `tables`).
 
 ## Permessi e spazi
 

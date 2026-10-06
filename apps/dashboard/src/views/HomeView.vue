@@ -5,7 +5,7 @@ import { Avatar, fmtDate, useAuth } from '@shared'
 import { MODES, fmtRelative, loadCatalog, useCatalog } from '../catalog.js'
 
 const { user } = useAuth()
-const { state, apps, recent, friends } = useCatalog()
+const { state, apps, recent, friends, games } = useCatalog()
 onMounted(loadCatalog)
 
 const firstName = computed(() => (user.value?.user_metadata?.full_name ?? '').split(' ')[0])
@@ -31,8 +31,17 @@ function setSort(v) {
   try { localStorage.setItem('dashboard-sort', v) } catch { /* storage non disponibile */ }
 }
 
-const tags = computed(() => [...new Set(apps.value.flatMap((a) => a.tags ?? []))].sort((a, b) => a.localeCompare(b, 'it')))
+const tags = computed(() => [...new Set([...apps.value, ...games].flatMap((a) => a.tags ?? []))].sort((a, b) => a.localeCompare(b, 'it')))
 const norm = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+
+const gameList = computed(() => {
+  const words = norm(q.value.trim()).split(/\s+/).filter(Boolean)
+  return games.filter((g) => {
+    if (tag.value && !(g.tags ?? []).includes(tag.value)) return false
+    const hay = norm([g.name, g.description, g.slug, ...(g.tags ?? [])].join(' '))
+    return words.every((w) => hay.includes(w))
+  })
+})
 
 const list = computed(() => {
   const words = norm(q.value.trim()).split(/\s+/).filter(Boolean)
@@ -59,7 +68,8 @@ function onKey(e) {
   }
 }
 function openFirst() {
-  if (list.value[0]) window.location.href = list.value[0].path
+  const first = list.value[0] ?? gameList.value[0]
+  if (first) window.location.href = first.path
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -127,14 +137,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
           </a>
         </div>
-        <div v-else-if="apps.length" class="card empty">
+        <div v-else-if="apps.length && !gameList.length" class="card empty">
           Nessuna app corrisponde a “{{ q || tag }}”.
           <button class="btn btn-sm" style="margin-left: 6px" @click="q = ''; tag = ''">Azzera</button>
         </div>
-        <div v-else class="card empty">
+        <div v-else-if="!apps.length" class="card empty">
           <p style="font-size: 2rem; margin: 0">🌱</p>
           <p v-if="state.admin">Nessuna app ancora. Chiedi a Claude di crearne una!</p>
           <p v-else>Non hai ancora app abilitate: chiedi all'amministratore di darti accesso.</p>
+        </div>
+      </section>
+
+      <section v-if="gameList.length" aria-labelledby="giochi" class="stack" style="gap: 10px">
+        <h3 id="giochi" class="section-title" style="margin: 0">Giochi</h3>
+        <div class="list">
+          <a v-for="g in gameList" :key="g.slug" :href="g.path" class="card app game">
+            <div class="app-icon">{{ g.icon }}</div>
+            <div class="app-body">
+              <div class="app-head">
+                <strong>{{ g.name }}</strong>
+                <span class="badge" title="Si gioca nel browser, i progressi restano su questo dispositivo">🎮 Gioco</span>
+              </div>
+              <p class="muted small desc">{{ g.description }}</p>
+              <div v-if="g.updatedAt" class="row meta">
+                <span class="muted small">agg. {{ fmtDate(g.updatedAt) }}</span>
+              </div>
+            </div>
+            <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </a>
         </div>
       </section>
 
@@ -181,6 +211,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 @media (min-width: 760px) { .list { grid-template-columns: 1fr 1fr; } }
 .app { display: flex; gap: 14px; align-items: flex-start; color: inherit; text-decoration: none; transition: transform .15s, border-color .15s; }
 .app:hover { transform: translateY(-2px); border-color: var(--primary); }
+.game { background: linear-gradient(135deg, var(--surface), var(--primary-soft)); }
 .app-icon { font-size: 1.8rem; width: 48px; height: 48px; display: grid; place-items: center; background: var(--surface-2); border-radius: 14px; flex-shrink: 0; }
 .app-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .app-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
