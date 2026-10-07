@@ -1,0 +1,22 @@
+{
+  "name": "Voli",
+  "description": "Monitoraggio dei prezzi dei voli con date flessibili: più aeroporti di partenza e arrivo, durata variabile, orari e compagnie preferite, ricerca automatica di Claude su Ryanair, Wizz Air e Google Flights, storico, statistiche e avvisi su obiettivo e minimo storico",
+  "icon": "✈️",
+  "dataMode": "mixed",
+  "tables": [
+    "voli_ricerche",
+    "voli_fonti",
+    "voli_voli",
+    "voli_prezzi",
+    "voli_andamento",
+    "voli_avvisi",
+    "voli_esecuzioni"
+  ],
+  "tags": [
+    "viaggi",
+    "claude",
+    "statistiche"
+  ],
+  "createdAt": "2026-10-07",
+  "updatedAt": "2026-10-07"
+}
