@@ -1,5 +1,5 @@
 // Formattazione specifica dei voli (in italiano). Le date sono 'YYYY-MM-DD' locali: niente fusi orari.
-import aeroporti from './aeroporti.js'
+import { caricaAeroporti, perCodice } from './aeroporti.js'
 
 const GIORNI = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
 export const GIORNI_LUNGHI = ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica']
@@ -34,9 +34,9 @@ export const prezzo = (v) => (v == null ? '—' : new Intl.NumberFormat('it-IT',
 /** Prezzo arrotondato all'euro (griglia, grafici) */
 export const prezzoTondo = (v) => (v == null ? '—' : euro0.format(Math.round(v)))
 
-const byCode = new Map(aeroporti.map(([c, n, p]) => [c, { codice: c, nome: n, paese: p }]))
-export const aeroporto = (c) => byCode.get(c) ?? { codice: c, nome: c, paese: '' }
-export const nomeAeroporto = (c) => byCode.get(c)?.nome ?? c
+caricaAeroporti() // in background: finché non arriva, i nomi sono i codici
+export const aeroporto = (c) => perCodice.value.get(c) ?? { codice: c, nome: c, paese: '', citta: false }
+export const nomeAeroporto = (c) => perCodice.value.get(c)?.nome ?? c
 /** ['BLQ','BGY'] → 'Bologna, Milano Bergamo' */
 export const nomiAeroporti = (list = []) => list.map(nomeAeroporto).join(', ')
 

@@ -2,8 +2,10 @@
 // Elenco di aeroporti (codici IATA) come chip, con suggerimenti per codice, città o paese.
 // Si può aggiungere anche un codice di 3 lettere che non è nell'elenco.
 import { computed, ref } from 'vue'
-import aeroporti from '../lib/aeroporti.js'
-import { nomeAeroporto } from '../lib/formato.js'
+import { aeroporti, caricaAeroporti } from '../lib/aeroporti.js'
+import { aeroporto, nomeAeroporto } from '../lib/formato.js'
+
+caricaAeroporti()
 
 const model = defineModel({ type: Array, default: () => [] })
 defineProps({ placeholder: { type: String, default: 'Città o codice (es. BLQ)' }, label: { type: String, default: '' } })
@@ -11,19 +13,22 @@ defineProps({ placeholder: { type: String, default: 'Città o codice (es. BLQ)' 
 const q = ref('')
 const open = ref(false)
 const active = ref(0)
-const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+// minuscole senza accenti (anche đ → d, per i nomi vietnamiti)
+const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
+const indice = computed(() => aeroporti.value.map((a) => ({ ...a, n: norm(a.nome), p: norm(a.paese), c: a.codice.toLowerCase() })))
 
+/** Per codice, nome (città o aeroporto) o paese: "vietnam" elenca tutti gli aeroporti del Vietnam. */
 const suggestions = computed(() => {
   const t = norm(q.value.trim())
   if (!t) return []
   const out = []
-  for (const [c, n, p] of aeroporti) {
-    if (model.value.includes(c)) continue
-    const score = c.toLowerCase() === t ? 0 : c.toLowerCase().startsWith(t) ? 1 : norm(n).startsWith(t) ? 2 : norm(n).includes(t) ? 3 : norm(p).startsWith(t) ? 4 : -1
-    if (score >= 0) out.push({ c, n, p, score })
+  for (const a of indice.value) {
+    if (model.value.includes(a.codice)) continue
+    const score = a.c === t ? 0 : a.c.startsWith(t) ? 1 : a.n.startsWith(t) ? 2 : a.n.includes(t) ? 3 : a.p.startsWith(t) ? 4 : -1
+    if (score >= 0) out.push({ ...a, score })
   }
-  out.sort((a, b) => a.score - b.score || a.n.localeCompare(b.n, 'it'))
-  return out.slice(0, 8)
+  out.sort((a, b) => a.score - b.score || (a.citta === b.citta ? 0 : a.citta ? -1 : 1) || a.nome.localeCompare(b.nome, 'it'))
+  return out.slice(0, 30)
 })
 
 function add(code) {
@@ -43,7 +48,7 @@ function onKey(e) {
   else if (e.key === 'Enter' || e.key === ',') {
     e.preventDefault()
     const s = suggestions.value[active.value]
-    if (s) add(s.c)
+    if (s) add(s.codice)
     else if (/^[a-z]{3}$/i.test(q.value.trim())) add(q.value.trim())
   } else if (e.key === 'Backspace' && !q.value && model.value.length) remove(model.value.at(-1))
 }
@@ -54,6 +59,7 @@ function onKey(e) {
     <div class="box" @click="$refs.inp.focus()">
       <span v-for="c in model" :key="c" class="chip" :title="nomeAeroporto(c)">
         <strong>{{ c }}</strong> <span class="muted small">{{ nomeAeroporto(c) !== c ? nomeAeroporto(c) : '' }}</span>
+        <span v-if="aeroporto(c).citta" class="tag" title="Codice città: lo cerca solo Google Flights">città</span>
         <button type="button" class="x" :aria-label="`Togli ${c}`" @click.stop="remove(c)">×</button>
       </span>
       <input
@@ -61,9 +67,11 @@ function onKey(e) {
         autocomplete="off" @keydown="onKey" @focus="open = true" @blur="onBlur" @input="active = 0"
       />
     </div>
-    <ul v-if="open && suggestions.length" class="menu" role="listbox">
-      <li v-for="(s, i) in suggestions" :key="s.c" role="option" :aria-selected="i === active" :class="{ on: i === active }" @mousedown.prevent="add(s.c)">
-        <strong>{{ s.c }}</strong> {{ s.n }} <span class="muted small">{{ s.p }}</span>
+    <p v-if="model.length >= 10" class="muted small" style="margin: 4px 0 0">Al massimo 10 aeroporti: ognuno moltiplica le ricerche.</p>
+    <ul v-else-if="open && suggestions.length" class="menu" role="listbox">
+      <li v-for="(s, i) in suggestions" :key="s.codice" role="option" :aria-selected="i === active" :class="{ on: i === active }" @mousedown.prevent="add(s.codice)">
+        <strong>{{ s.codice }}</strong> {{ s.nome }} <span class="muted small">{{ s.paese }}</span>
+        <span v-if="s.citta" class="tag">città · solo Google Flights</span>
       </li>
     </ul>
   </div>
@@ -80,4 +88,5 @@ function onKey(e) {
 .menu { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); max-height: 280px; overflow-y: auto; }
 .menu li { padding: 7px 9px; border-radius: 8px; cursor: pointer; }
 .menu li.on, .menu li:hover { background: var(--surface-2); }
+.tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; font-size: .72rem; background: color-mix(in srgb, var(--warn) 16%, var(--surface)); color: var(--warn); }
 </style>
