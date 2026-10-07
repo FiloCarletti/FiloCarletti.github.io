@@ -33,15 +33,25 @@ function keepSpaceInUrl(router) {
     if (!id) return true
     if (to.query.space && to.query.space !== id) {
       // Link verso un altro spazio: ricarica, così ogni vista rilegge i dati giusti.
-      window.location.hash = router.resolve(to).hash
+      // L'URL di destinazione si scrive senza passare dal router (`href` è '#/percorso?space=…' con l'history a
+      // hash), e la navigazione resta in sospeso: con `return false` il router riporterebbe l'URL allo spazio
+      // di prima e annullerebbe la ricarica.
+      const url = window.location.pathname + window.location.search + router.resolve(to).href
+      window.history.replaceState(window.history.state, '', url)
       window.location.reload()
-      return false
+      return new Promise(() => {})
     }
     if (to.query.space === id && (to.query.k ?? null) === LINK_TOKEN) return true
     return { ...to, query: { ...to.query, ...extra() } }
   })
-  // Spazio risolto dopo il caricamento (es. quello personale): scrivilo nell'URL.
-  watch(spaceId, (id) => {
-    if (id) router.replace({ query: { ...router.currentRoute.value.query, ...extra() } })
+  // Spazio risolto dopo il caricamento (es. quello personale): scrivilo nell'URL. Si aspetta la prima
+  // navigazione (le viste caricate a richiesta la ritardano): prima la rotta corrente è ancora '/' e un link
+  // profondo (#/dettaglio/…?space=…) finirebbe sulla home.
+  watch(spaceId, async (id) => {
+    if (!id) return
+    await router.isReady()
+    const cur = router.currentRoute.value
+    if (cur.query.space === id && (cur.query.k ?? null) === LINK_TOKEN) return
+    router.replace({ path: cur.path, query: { ...cur.query, ...extra() } })
   })
 }
