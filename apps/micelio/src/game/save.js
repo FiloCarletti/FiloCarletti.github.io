@@ -2,7 +2,7 @@
 // In debug (npm run dev, oppure ?debug nell'URL) si salva in chiaro, per leggere e modificare lo stato.
 // La chiave sta nel codice (il repo è pubblico): la cifratura scoraggia le modifiche a mano
 // e rileva i salvataggi alterati (GCM è autenticato), non protegge segreti.
-import { migrate } from './engine.js'
+import { SAVE_VERSION, migrate } from './engine.js'
 
 const KEY = 'micelio-save'
 const BACKUP = 'micelio-save-backup'
@@ -40,8 +40,13 @@ export async function encode(state, { plain = DEBUG } = {}) {
   return ENC + toB64(out)
 }
 
-/** Stringa → stato. Accetta sempre entrambi i formati; lancia un errore se è illeggibile. */
+/** Stringa → stato (migrato all'ultima versione). Accetta sempre entrambi i formati; lancia un errore se è illeggibile. */
 export async function decode(str) {
+  return migrate(await decodeRaw(str))
+}
+
+/** Stringa → oggetto salvato così com'è (senza migrazione). */
+async function decodeRaw(str) {
   str = String(str ?? '').trim()
   let json
   if (str.startsWith(TXT)) json = str.slice(TXT.length)
@@ -57,7 +62,7 @@ export async function decode(str) {
   } else throw new Error('Non è un salvataggio di Micelio.')
   const raw = JSON.parse(json)
   if (!raw || typeof raw !== 'object' || !raw.res) throw new Error('Salvataggio non valido.')
-  return migrate(raw)
+  return raw
 }
 
 export async function saveGame(state) {
@@ -71,7 +76,11 @@ export async function loadGame() {
   const str = localStorage.getItem(KEY)
   if (!str) return null
   try {
-    return await decode(str)
+    const raw = await decodeRaw(str)
+    // Prima migrazione verso una versione nuova: si tiene intatta la copia vecchia (micelio-save-v1…).
+    const from = raw.v ?? 1
+    if (from < SAVE_VERSION && !localStorage.getItem(`${KEY}-v${from}`)) localStorage.setItem(`${KEY}-v${from}`, str)
+    return migrate(raw)
   } catch (e) {
     const bak = localStorage.getItem(BACKUP)
     if (bak) return decode(bak)

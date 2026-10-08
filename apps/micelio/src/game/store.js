@@ -4,7 +4,7 @@
 import { ref, shallowRef, triggerRef } from 'vue'
 import { toast } from '@shared/toast.js'
 import * as E from './engine.js'
-import { ACH_BONUS } from './data.js'
+import { ACH_BONUS, RELICS } from './data.js'
 import { DEBUG, backupGame, decode, encode, loadGame, saveGame, wipeGame } from './save.js'
 
 const TICK_MS = 250
@@ -40,14 +40,18 @@ function simulateAway(s, to) {
   const ms = to - s.t
   const earned = { ...s.life.earned }
   const before = { ...s.res }
+  const ringsBefore = s.ringsReady
   const t0 = performance.now()
   live.value = E.advance(s, to)
   const fresh = E.checkProgress(s, to)
   if (ms < AWAY_MIN_MS) return
+  E.logEvent(s, to, 'apertura', Math.round(ms / 60e3))
   const d = E.derive(s)
   away.value = {
     ms,
     calcMs: Math.round(performance.now() - t0),
+    rings: s.ringsReady - ringsBefore,
+    expBack: s.exp.filter((e) => e.end <= Date.now()).map((e) => E.BIOME[e.b]),
     rows: E.RES_IDS.filter((r) => s.life.earned[r] - earned[r] > 0 || s.res[r] !== before[r]).map((r) => ({
       r,
       made: s.life.earned[r] - earned[r],
@@ -101,10 +105,21 @@ function tick() {
   const t = Date.now()
   now.value = t
   // Scheda in background: il browser rallenta i timer, advance recupera il tempo perso.
+  const ringsBefore = s.ringsReady
   live.value = E.advance(s, t)
   for (const a of E.checkProgress(s, t)) toast.ok(`🏆 Traguardo: ${a.name} (+${Math.round(ACH_BONUS * 100)}% produzione)`)
+  if (s.ringsReady > ringsBefore) toast.ok('🪵 È maturo un nuovo anello: formalo nella scheda Albero Madre')
+  for (const e of s.exp) {
+    const key = `${e.b}:${e.start}`
+    if (e.end <= t && !notified.has(key)) {
+      notified.add(key)
+      // all'avvio le spedizioni già tornate sono nel riepilogo "Mentre eri via"
+      if (t - e.end < 5000) toast.ok(`🎒 Spedizione tornata: ${E.BIOME[e.b].name}`)
+    }
+  }
   refresh()
 }
+const notified = new Set()
 
 export async function save() {
   const s = game.value
@@ -187,8 +202,18 @@ export async function resetGame() {
 
 export function debugSkip(ms) {
   const s = game.value
+  // le spedizioni usano l'ora reale: le si porta avanti spostandole indietro
+  for (const e of s.exp) {
+    e.start -= ms
+    e.end -= ms
+  }
   simulateAway(s, s.t + ms) // il tick successivo riallinea s.t all'ora reale senza contare due volte
   refresh()
+}
+export function debugRelics() {
+  act((s) => {
+    for (const r of RELICS) s.relics[r.id] = Math.min(E.relicMax(r), (s.relics[r.id] ?? 0) + 1)
+  })
 }
 export function debugFill() {
   act((s) => {

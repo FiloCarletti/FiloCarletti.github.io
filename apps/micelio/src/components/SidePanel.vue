@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { RESERVE_STEPS, SEASONS, STORAGE_COST } from '../game/data.js'
+import { RESERVE_STEPS, SEASONS, STORAGE_COST, WEATHER } from '../game/data.js'
 import * as E from '../game/engine.js'
 import { act, derived, game, live, now } from '../game/store.js'
 import { fmt, fmtDuration, fmtPct, fmtRate } from '../game/format.js'
@@ -9,6 +9,9 @@ const season = computed(() => {
   const i = E.seasonAt(now.value)
   return { ...SEASONS[i], left: E.nextSeasonAt(now.value) - now.value, next: SEASONS[(i + 1) % 4] }
 })
+// Meteo di oggi e previsione per domani (dipendono dalla data: si possono pianificare).
+const weather = computed(() => WEATHER[E.weatherAt(game.value, now.value)])
+const tomorrow = computed(() => WEATHER[E.weatherAt(game.value, E.nextDayAt(now.value))])
 
 // Risorse consumate da almeno un convertitore posseduto: per loro ha senso la riserva.
 const consumed = computed(() => {
@@ -59,6 +62,11 @@ function tap() {
       </div>
       <p class="small" style="margin: 4px 0 0">{{ season.desc }}</p>
       <p class="muted small" style="margin: 2px 0 0">Poi {{ season.next.icon }} {{ season.next.name }}. Un giorno reale è un anno: ogni stagione dura 6 ore.</p>
+      <div class="weather" :title="weather.desc">
+        <strong>{{ weather.icon }} {{ weather.name }}</strong>
+        <span class="small">{{ weather.desc }}</span>
+        <span class="muted small">Domani: {{ tomorrow.icon }} {{ tomorrow.name }}</span>
+      </div>
     </div>
 
     <button class="card tap" @click="tap">
@@ -105,6 +113,7 @@ function tap() {
 .tap:active { transform: scale(.98); }
 .tap-icon { font-size: 1.6rem; animation: pop .25s ease-out; }
 .block { display: block; }
+.weather { display: flex; flex-direction: column; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 @keyframes pop { from { transform: scale(1.3); } to { transform: scale(1); } }
 .res-list { padding: 8px 12px; display: grid; gap: 2px; }
 .res { padding: 6px 0; border-bottom: 1px solid var(--border); }

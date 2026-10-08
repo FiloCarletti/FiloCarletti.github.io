@@ -1,11 +1,12 @@
 // Motore del gioco: funzioni pure sullo stato (oggetto JSON semplice), senza Vue né browser.
 // Lo usano sia l'app sia il simulatore di bilanciamento (tools/simula.mjs).
 import {
-  ACH_BONUS, ACHIEVEMENTS, BUILDINGS, DEFAULT_RESERVE, FAR_BONUS, FAR_COST, GENOME, RESEARCH, RESOURCES, SEASONS,
-  STORAGE_COST, TERRITORIES, TREE,
+  ACH_BONUS, ACHIEVEMENTS, BIOMES, BUILDINGS, DEFAULT_RESERVE, EXP_TERR, FAR_BONUS, FAR_COST, GENOME, RELIC_MAX, RELICS,
+  RESEARCH, RESOURCES, RING_MILESTONES, RING_TRAITS, RINGS, SEASONS, STORAGE_COST, TERRITORIES, TREE, WEATHER,
 } from './data.js'
 
-export const SAVE_VERSION = 1
+// v1: gioco base · v2: meteo, anelli, spedizioni, reperti, diario (i v1 si caricano con migrate)
+export const SAVE_VERSION = 2
 /** Spore = √(nutrienti prodotti nella partita / SPORE_DIV) · bonus */
 export const SPORE_DIV = 2e5
 /** Si può sporulare solo dopo aver conquistato questo territorio (Ruscello). */
@@ -21,6 +22,9 @@ export const RES = index(RESOURCES)
 export const BLD = index(BUILDINGS)
 export const RSC = index(RESEARCH)
 export const GEN = index(GENOME)
+export const TRAIT = index(RING_TRAITS)
+export const BIOME = index(BIOMES)
+export const RELIC = index(RELICS)
 const PRODUCERS = BUILDINGS.filter((b) => !b.in)
 const CONVERTERS = BUILDINGS.filter((b) => b.in)
 
@@ -44,17 +48,29 @@ export function newState(now = Date.now()) {
     rs: {}, // ricerche completate
     terr: 0, // ultimo territorio conquistato
     run: { start: now, earned: zeros() },
-    life: { earned: zeros(), clicks: 0, spor: 0, sporeTot: 0, bestRun: null },
+    life: { earned: zeros(), clicks: 0, spor: 0, sporeTot: 0, bestRun: null, exp: 0, maxTerr: 0 },
     spore: 0,
     gen: {},
     tree: 0,
     ach: {},
     seen: {},
     seasonsSeen: [],
+    // v2 — tutto ciò che segue sopravvive alla sporulazione
+    seed: randomSeed(), // meteo, tratti proposti e reperti dipendono da qui: ricaricare non cambia l'esito
+    rng: 0, // contatore delle estrazioni
+    weatherSeen: [],
+    rings: 0, // anelli formati
+    ringsReady: 0, // anelli maturi da formare
+    traits: {}, // tratto → copie
+    exp: [], // spedizioni in corso: { b, start, end, relic }
+    relics: {}, // reperto → livello
+    log: { ev: [], snap: [], snapAt: 0 }, // diario (visibile in debug)
   }
   startRun(s)
   return s
 }
+
+const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
 
 function startRun(s) {
   const g = lvl(s, 'germoglio')
@@ -73,9 +89,65 @@ export function migrate(raw) {
       else dst[k] = v
     }
   }
+  const from = raw?.v ?? 1
   merge(s, raw)
+  s.life.maxTerr = Math.max(s.life.maxTerr, s.terr)
+  // Albero già adulto prima degli anelli: il primo è subito disponibile.
+  if (from < 2 && s.tree >= TREE.stages && !s.rings && !s.ringsReady) s.ringsReady = 1
+  if (from < SAVE_VERSION) logEvent(s, s.t, 'migr', [from, SAVE_VERSION])
   s.v = SAVE_VERSION
   return s
+}
+
+// ---------------------------------------------------------------- diario (debug)
+// Eventi: [t, tipo, dati] · istantanee orarie: [t, albero, terr, spor, anelli, log10 nutrienti, log10 luce,
+// log10 moltiplicatore, spore totali, tocchi, spedizioni]. Limitati per non pesare su localStorage
+// (~50 KB al massimo): gli eventi più vecchi si scartano, le istantanee si diradano.
+const LOG_EV_MAX = 500
+const LOG_SNAP_MAX = 400
+const LOG_SNAP_MS = 3600e3
+
+export function logEvent(s, t, type, data) {
+  const ev = s.log.ev
+  ev.push(data === undefined ? [Math.round(t), type] : [Math.round(t), type, data])
+  if (ev.length > LOG_EV_MAX) ev.splice(0, ev.length - LOG_EV_MAX)
+}
+
+function logSnapshot(s, t) {
+  const l10 = (x) => Math.round(Math.log10(Math.max(1, x)) * 100) / 100
+  const snap = s.log.snap
+  snap.push([
+    Math.round(t), s.tree, s.terr, s.life.spor, s.rings, l10(s.life.earned.nutrienti), l10(s.life.earned.luce),
+    l10(derive(s).all), Math.round(s.life.sporeTot), s.life.clicks, s.life.exp,
+  ])
+  s.log.snapAt = t
+  // Pieno: tiene la metà più recente intatta e dirada la più vecchia (una istantanea su due).
+  if (snap.length > LOG_SNAP_MAX) {
+    const half = Math.floor(snap.length / 2)
+    s.log.snap = [...snap.slice(0, half).filter((_, i) => i % 2 === 0), ...snap.slice(half)]
+  }
+}
+
+// ---------------------------------------------------------------- casualità riproducibile
+
+function hash(a) {
+  a = (a + 0x6d2b79f5) | 0
+  let t = Math.imul(a ^ (a >>> 15), 1 | a)
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
+/** Numero in [0, 1) dalla sequenza del salvataggio. */
+function rand(s) {
+  s.rng++
+  return hash(s.seed ^ Math.imul(s.rng, 0x9e3779b1))
+}
+function pickWeighted(weights, u) {
+  const tot = weights.reduce((a, b) => a + b, 0)
+  let x = u * tot
+  for (let i = 0; i < weights.length; i++) {
+    if ((x -= weights[i]) < 0) return i
+  }
+  return weights.length - 1
 }
 
 // ---------------------------------------------------------------- stagioni (ora locale: 6 ore ciascuna)
@@ -88,10 +160,30 @@ export function nextSeasonAt(t) {
   const next = new Date(d.getFullYear(), d.getMonth(), d.getDate(), (Math.floor(d.getHours() / 6) + 1) * 6).getTime()
   return next > t ? next : t + 3600e3 // cambio d'ora legale
 }
-export function seasonMult(si, res, reduction) {
-  const fx = SEASONS[si].fx
+/** Meteo del giorno (indice in WEATHER): dipende dalla data locale e dal seme del salvataggio. */
+export function weatherAt(s, t) {
+  const d = new Date(t)
+  const day = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
+  return pickWeighted(WEATHER.map((w) => w.w), hash(day ^ s.seed))
+}
+/** Mezzanotte successiva (ora locale). */
+export function nextDayAt(t) {
+  const d = new Date(t)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+}
+
+/** Moltiplicatore di stagione e meteo per le strutture che producono `res`; i malus sono ridotti di `reduction`. */
+export function climateMult(si, wi, res, reduction) {
   const adj = (f) => (f < 1 ? 1 - (1 - f) * (1 - reduction) : f)
-  return adj(fx['*'] ?? 1) * adj(fx[res] ?? 1)
+  const sf = SEASONS[si].fx
+  const wf = WEATHER[wi].fx
+  return adj(sf['*'] ?? 1) * adj(sf[res] ?? 1) * adj(wf['*'] ?? 1) * adj(wf[res] ?? 1)
+}
+/** Moltiplicatori climatici per tutte le risorse all'istante t. */
+export function climateAt(s, t, d) {
+  const si = seasonAt(t)
+  const wi = weatherAt(s, t)
+  return Object.fromEntries(RES_IDS.map((r) => [r, climateMult(si, wi, r, d.season)]))
 }
 
 // ---------------------------------------------------------------- moltiplicatori
@@ -110,20 +202,30 @@ export function territoryAt(i) {
 
 /** Tutti i moltiplicatori derivati dallo stato. Costante finché non si compra qualcosa. */
 export function derive(s) {
-  const d = { all: 1, b: {}, click: 1, cap: 1, spore: 1, season: 0, cost: 1 }
-  const apply = (fx) => {
+  const d = { all: 1, b: {}, res: {}, click: 1, cap: 1, spore: 1, season: 0, cost: 1, slot: 0, expTime: 1, luck: 1 }
+  // n = quante volte si applica l'effetto (copie di un tratto, livello di un reperto)
+  const apply = (fx, n = 1) => {
+    if (!n) return
     for (const f of fx) {
-      if (f.t === 'all') d.all *= f.x
-      else if (f.t === 'b') d.b[f.id] = (d.b[f.id] ?? 1) * f.x
-      else if (f.t === 'click') d.click *= f.x
-      else if (f.t === 'cap') d.cap *= f.x
-      else if (f.t === 'spore') d.spore *= f.x
-      else if (f.t === 'season') d.season = 1 - (1 - d.season) * (1 - f.x)
-      else if (f.t === 'cost') d.cost *= f.x
+      if (f.t === 'all') d.all *= f.x ** n
+      else if (f.t === 'b') d.b[f.id] = (d.b[f.id] ?? 1) * f.x ** n
+      else if (f.t === 'res') d.res[f.id] = (d.res[f.id] ?? 1) * f.x ** n
+      else if (f.t === 'click') d.click *= f.x ** n
+      else if (f.t === 'cap') d.cap *= f.x ** n
+      else if (f.t === 'spore') d.spore *= f.x ** n
+      else if (f.t === 'season') d.season = 1 - (1 - d.season) * (1 - f.x) ** n
+      else if (f.t === 'cost') d.cost *= f.x ** n
+      else if (f.t === 'slot') d.slot += f.x * n
+      else if (f.t === 'expTime') d.expTime *= f.x ** n
+      else if (f.t === 'luck') d.luck *= f.x ** n
     }
   }
   for (const id of Object.keys(s.rs)) if (RSC[id]) apply(RSC[id].fx)
   for (let i = 1; i <= s.terr; i++) apply(territoryAt(i).fx)
+  for (const [id, n] of Object.entries(s.traits)) if (TRAIT[id]) apply(TRAIT[id].fx, n)
+  for (const [id, n] of Object.entries(s.relics)) if (RELIC[id]) apply(RELIC[id].fx, n)
+  for (const m of RING_MILESTONES) if (s.rings >= m.n && m.fx) apply(m.fx)
+  d.slots = 1 + d.slot
 
   d.achMult = 1 + ACH_BONUS * Object.keys(s.ach).length
   d.treeMult = TREE.all ** s.tree
@@ -142,8 +244,8 @@ export function derive(s) {
 
 export const reserveOf = (s, r) => s.reserve[r] ?? DEFAULT_RESERVE
 
-/** Moltiplicatore di una struttura (senza stagione). */
-export const buildingMult = (d, id) => d.all * (d.b[id] ?? 1)
+/** Moltiplicatore di una struttura (senza stagione e meteo). */
+export const buildingMult = (d, id) => d.all * (d.b[id] ?? 1) * (d.res[BLD[id].main] ?? 1)
 
 // ---------------------------------------------------------------- simulazione
 
@@ -151,20 +253,20 @@ export const buildingMult = (d, id) => d.all * (d.b[id] ?? 1)
  * Un passo di dt secondi: prima i produttori, poi i convertitori (limitati da ciò che c'è),
  * infine i depositi tagliano l'eccesso. `out` (facoltativo) raccoglie flussi ed efficienze.
  */
-function step(s, d, dt, si, out) {
+function step(s, d, dt, clim, out) {
   const res = s.res
   const before = { ...res }
   const used = zeros()
   for (const b of PRODUCERS) {
     const n = s.b[b.id]
     if (!n) continue
-    const k = n * buildingMult(d, b.id) * seasonMult(si, b.main, d.season) * dt
+    const k = n * buildingMult(d, b.id) * clim[b.main] * dt
     for (const r in b.out) res[r] += b.out[r] * k
   }
   for (const b of CONVERTERS) {
     const n = s.b[b.id]
     if (!n || s.off[b.id]) continue
-    let k = n * buildingMult(d, b.id) * seasonMult(si, b.main, d.season) * dt
+    let k = n * buildingMult(d, b.id) * clim[b.main] * dt
     let f = 1
     for (const r in b.in) f = Math.min(f, (res[r] - reserveOf(s, r) * d.caps[r]) / (b.in[r] * k))
     f = Math.max(0, f)
@@ -189,7 +291,8 @@ function step(s, d, dt, si, out) {
 }
 
 /**
- * Porta la simulazione fino all'istante `to` (ms), spezzandola ai cambi di stagione.
+ * Porta la simulazione fino all'istante `to` (ms), spezzandola ai cambi di stagione (e quindi di giorno,
+ * col suo meteo). A ogni mezzanotte, se l'Albero Madre è adulto, matura un anello.
  * Restituisce { flow, eff } dell'ultimo passo (per mostrare i ritmi /s).
  */
 export function advance(s, to) {
@@ -203,11 +306,19 @@ export function advance(s, to) {
   let t = s.t
   while (t < to) {
     const si = seasonAt(t)
+    const wi = weatherAt(s, t)
     if (!s.seasonsSeen.includes(si)) s.seasonsSeen.push(si)
-    const end = Math.min(to, nextSeasonAt(t))
+    if (!s.weatherSeen.includes(wi)) s.weatherSeen.push(wi)
+    const clim = climateAt(s, t, d)
+    const boundary = nextSeasonAt(t)
+    const end = Math.min(to, boundary)
     const span = (end - t) / 1000
     const n = Math.min(perSeason, Math.max(1, Math.ceil(span)))
-    for (let i = 0; i < n; i++) step(s, d, span / n, si, out)
+    for (let i = 0; i < n; i++) step(s, d, span / n, clim, out)
+    if (end === boundary && seasonAt(end) === 0 && s.tree >= TREE.stages) {
+      s.ringsReady++
+      logEvent(s, end, 'anello_maturo', s.rings + s.ringsReady)
+    }
     t = end
   }
   s.t = to
@@ -215,9 +326,9 @@ export function advance(s, to) {
 }
 
 /** Ritmo teorico di produzione di una risorsa dai soli produttori (per il tocco). */
-function producerRate(s, d, si, r) {
+function producerRate(s, d, clim, r) {
   let v = 0
-  for (const b of PRODUCERS) if (b.out[r] && s.b[b.id]) v += b.out[r] * s.b[b.id] * buildingMult(d, b.id) * seasonMult(si, b.main, d.season)
+  for (const b of PRODUCERS) if (b.out[r] && s.b[b.id]) v += b.out[r] * s.b[b.id] * buildingMult(d, b.id) * clim[b.main]
   return v
 }
 
@@ -235,7 +346,7 @@ function pay(s, cost) {
 }
 
 export function clickValue(s, d, now) {
-  return d.click + d.clickShare * producerRate(s, d, seasonAt(now), 'nutrienti')
+  return d.click + d.clickShare * producerRate(s, d, climateAt(s, now, d), 'nutrienti')
 }
 export function click(s, now) {
   const d = derive(s)
@@ -305,6 +416,7 @@ export function conquer(s) {
   if (!canAfford(s, c)) return false
   pay(s, c)
   s.terr++
+  logEvent(s, s.t, 'terr', s.terr)
   return true
 }
 
@@ -333,6 +445,7 @@ export function sporulate(s, now) {
   s.life.sporeTot += gain
   const runMs = now - s.run.start
   if (!s.life.bestRun || runMs < s.life.bestRun) s.life.bestRun = runMs
+  logEvent(s, now, 'spor', [gain, Math.round(runMs / 60e3), s.terr])
   Object.assign(s, { res: zeros(), store: zeros(), b: {}, off: {}, rs: {}, terr: 0, run: { start: now, earned: zeros() } })
   startRun(s)
   return gain
@@ -366,7 +479,86 @@ export function growTree(s) {
   if (!c || !canAfford(s, c)) return false
   pay(s, c)
   s.tree++
+  logEvent(s, s.t, 'albero', s.tree)
+  if (s.tree === TREE.stages) s.ringsReady++ // l'Albero adulto inizia subito il primo anello
   return true
+}
+
+// ---------------------------------------------------------------- anelli
+
+export function ringCost(s) {
+  return RINGS.cost(s.rings)
+}
+/** I tre tratti proposti per il prossimo anello (fissi finché non lo si forma). */
+export function ringChoices(s) {
+  const ids = RING_TRAITS.map((x) => x.id)
+  const out = []
+  for (let i = 0; out.length < RINGS.choices && i < 50; i++) {
+    const id = ids[Math.floor(hash(s.seed ^ Math.imul(s.rings + 1, 0x85ebca6b) ^ Math.imul(i + 1, 0xc2b2ae35)) * ids.length)]
+    if (!out.includes(id)) out.push(id)
+  }
+  return out
+}
+export function formRing(s, traitId) {
+  if (s.ringsReady < 1 || !ringChoices(s).includes(traitId)) return false
+  const c = ringCost(s)
+  if (!canAfford(s, c)) return false
+  pay(s, c)
+  s.rings++
+  s.ringsReady--
+  s.traits[traitId] = (s.traits[traitId] ?? 0) + 1
+  logEvent(s, s.t, 'anello', [s.rings, traitId])
+  return true
+}
+
+// ---------------------------------------------------------------- spedizioni e reperti
+
+export const expUnlocked = (s) => s.life.maxTerr >= EXP_TERR
+export const biomeAvailable = (s, b) => !b.req || !!b.req(s)
+export function biomeCost(b, d) {
+  return mapObj(b.cost, (f, r) => f * d.caps[r])
+}
+export const biomeMs = (b, d) => Math.round(b.ms * d.expTime)
+/** Probabilità di ogni rarità (somma 1), con la fortuna che pesa di più sulle rarità alte. */
+export function biomeOdds(b, d) {
+  const w = b.odds.map((x, i) => x * d.luck ** i)
+  const tot = w.reduce((a, c) => a + c, 0)
+  return w.map((x) => x / tot)
+}
+export const relicMax = (r) => r.max ?? RELIC_MAX
+
+/** Parte una spedizione: il reperto si estrae subito (ricaricare la pagina non lo cambia). */
+export function startExpedition(s, biomeId, now) {
+  const b = BIOME[biomeId]
+  const d = derive(s)
+  if (!b || !expUnlocked(s) || !biomeAvailable(s, b) || s.exp.length >= d.slots) return false
+  const c = biomeCost(b, d)
+  if (!canAfford(s, c)) return false
+  pay(s, c)
+  const rarity = pickWeighted(biomeOdds(b, d), rand(s))
+  const pool = RELICS.filter((r) => r.r === rarity)
+  const relic = pool[Math.floor(rand(s) * pool.length)].id
+  s.exp.push({ b: biomeId, start: now, end: now + biomeMs(b, d), relic })
+  logEvent(s, now, 'exp', biomeId)
+  return true
+}
+/** Raccoglie la spedizione i (se è tornata). Un reperto già al massimo diventa spore (√spore totali × rarità). */
+export function collectExpedition(s, i, now) {
+  const e = s.exp[i]
+  if (!e || now < e.end) return null
+  s.exp.splice(i, 1)
+  s.life.exp++
+  const r = RELIC[e.relic]
+  const cur = s.relics[r.id] ?? 0
+  let spore = 0
+  if (cur < relicMax(r)) s.relics[r.id] = cur + 1
+  else {
+    spore = Math.max(1, Math.round(Math.sqrt(s.life.sporeTot) * (r.r + 1))) // non composto: niente crescita esponenziale
+    s.spore += spore
+    s.life.sporeTot += spore
+  }
+  logEvent(s, now, 'reperto', [r.id, s.relics[r.id], spore])
+  return { relic: r, lvl: s.relics[r.id], isNew: cur === 0, spore }
 }
 
 // ---------------------------------------------------------------- visibilità e traguardi
@@ -381,6 +573,8 @@ export function resourceVisible(s, r) {
 
 /** Aggiorna ciò che è stato scoperto e sblocca i traguardi. Restituisce i traguardi nuovi. */
 export function checkProgress(s, now) {
+  if (s.terr > s.life.maxTerr) s.life.maxTerr = s.terr
+  if (now - s.log.snapAt >= LOG_SNAP_MS) logSnapshot(s, now)
   for (const b of BUILDINGS) {
     if (buildingVisible(s, b)) for (const r of [...Object.keys(b.out), ...Object.keys(b.in ?? {})]) s.seen[r] = true
   }

@@ -43,8 +43,12 @@ export function fxText(f) {
     case 'click': return `Tocco ×${it(f.x, 1)}`
     case 'cap': return `Depositi ×${it(f.x, 1)}`
     case 'spore': return `Spore ${pct(f.x)}`
-    case 'season': return `Malus delle stagioni −${it(f.x * 100, 0)}%`
+    case 'season': return `Malus di stagioni e meteo −${it(f.x * 100, 0)}%`
     case 'cost': return `Strutture ${pct(f.x)} di costo`
+    case 'res': return `${RES[f.id]?.name ?? f.id} ${f.x >= 2 ? `×${it(f.x, 1)}` : pct(f.x)}`
+    case 'slot': return `+${f.x} spedizion${f.x === 1 ? 'e' : 'i'} contemporane${f.x === 1 ? 'a' : 'e'}`
+    case 'expTime': return `Spedizioni ${pct(f.x)} di durata`
+    case 'luck': return `Fortuna ${pct(f.x)}`
     default: return ''
   }
 }

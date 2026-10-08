@@ -84,7 +84,11 @@ export const BUILDINGS = [
 
 // Effetti (fx): { t: 'all', x } produzione totale · { t: 'b', id, x } una struttura · { t: 'click', x }
 // { t: 'cap', x } capienza di tutti i depositi · { t: 'spore', x } spore alla sporulazione
-// { t: 'season', x } riduce i malus stagionali di x (0..1) · { t: 'cost', x } costo delle strutture
+// { t: 'season', x } riduce i malus di stagioni e meteo di x (0..1) · { t: 'cost', x } costo delle strutture
+// { t: 'res', id, x } strutture che producono quella risorsa · { t: 'slot', x } spedizioni contemporanee in più
+// { t: 'expTime', x } durata delle spedizioni · { t: 'luck', x } probabilità dei reperti più rari
+// Tratti degli anelli e reperti applicano lo stesso effetto una volta per copia / livello.
+// Salvataggi: gli id (e l'ordine dei territori) non vanno mai cambiati, solo aggiunti.
 export const RESEARCH = [
   { id: 'assorbimento', name: 'Assorbimento attivo', cost: { segnali: 10 }, fx: [{ t: 'click', x: 3 }], desc: 'Il tocco assorbe il triplo.' },
   { id: 'ife_ramificate', name: 'Ife ramificate', cost: { segnali: 20 }, fx: [{ t: 'b', id: 'ifa', x: 2 }] },
@@ -117,6 +121,10 @@ export const RESEARCH = [
   { id: 'lanterna2', name: 'Lanterne gemelle', cost: { segnali: 3e7, luce: 5000 }, fx: [{ t: 'b', id: 'lanterna', x: 2 }], need: ['sincronia'] },
   { id: 'sporogenesi2', name: 'Spore alate', cost: { segnali: 8e7 }, fx: [{ t: 'spore', x: 1.5 }], need: ['sporogenesi'] },
   { id: 'coscienza2', name: 'Mente collettiva', cost: { segnali: 3e8 }, fx: [{ t: 'all', x: 3 }], need: ['coscienza'] },
+  // espansione
+  { id: 'catalizzatori', name: 'Catalizzatori', cost: { segnali: 6e7, enzimi: 1e5 }, fx: [{ t: 'b', id: 'ghiandola', x: 3 }], need: ['chimica', 'sincronia'], desc: 'Più enzimi per le colonie lanterna.' },
+  { id: 'micorriza3', name: 'Rete di scambio', cost: { segnali: 2e8, zuccheri: 1e9 }, fx: [{ t: 'res', id: 'zuccheri', x: 2 }], need: ['micorriza2', 'lanterna2'] },
+  { id: 'lanterna3', name: 'Aurora sotterranea', cost: { segnali: 1e9, luce: 1e7 }, fx: [{ t: 'res', id: 'luce', x: 2 }], need: ['lanterna2', 'catalizzatori'] },
 ]
 
 // Territori in ordine: si conquistano uno dopo l'altro, nella partita in corso.
@@ -166,6 +174,102 @@ export const SEASONS = [
   { id: 'autunno', name: 'Autunno', icon: '🍂', fx: { nutrienti: 1.3, minerali: 1.6, enzimi: 1.3 }, desc: 'Foglie a terra: nutrienti +30%, minerali +60%, enzimi +30%.' },
 ]
 
+// ---------------------------------------------------------------- espansione: meteo, anelli, spedizioni
+// Meccaniche legate al tempo reale: la produzione aiuta, ma non basta a bruciarle in pochi giorni.
+
+// Meteo: uno al giorno (ora locale), estratto dalla data. Si somma alla stagione.
+export const WEATHER = [
+  { id: 'sereno', name: 'Sereno', icon: '🌤️', w: 30, fx: {}, desc: 'Nessun effetto.' },
+  { id: 'pioggia', name: 'Pioggia', icon: '🌧️', w: 18, fx: { acqua: 1.6, zuccheri: 1.2, luce: 0.8 }, desc: 'Acqua +60%, zuccheri +20%, luce −20%.' },
+  { id: 'nebbia', name: 'Nebbia', icon: '🌫️', w: 12, fx: { luce: 1.5, enzimi: 1.3 }, desc: 'L’umidità piace ai funghi: luce +50%, enzimi +30%.' },
+  { id: 'vento', name: 'Vento', icon: '🍃', w: 10, fx: { nutrienti: 1.4, minerali: 1.2 }, desc: 'Foglie e rami a terra: nutrienti +40%, minerali +20%.' },
+  { id: 'temporale', name: 'Temporale', icon: '⛈️', w: 8, fx: { '*': 0.9, segnali: 2.2 }, desc: 'Tutto −10%, ma i fulmini eccitano la rete: segnali ×2,2.' },
+  { id: 'siccita', name: 'Siccità', icon: '🏜️', w: 9, fx: { acqua: 0.5, minerali: 1.5, enzimi: 1.2 }, desc: 'Acqua −50%, minerali +50%, enzimi +20%.' },
+  { id: 'luna', name: 'Luna piena', icon: '🌕', w: 7, fx: { luce: 2 }, desc: 'I corpi fruttiferi brillano: luce ×2.' },
+  { id: 'gelata', name: 'Gelata', icon: '🧊', w: 6, fx: { '*': 0.8, segnali: 1.5 }, desc: 'Tutto −20%, segnali +50%.' },
+]
+
+// Anelli: quando l'Albero Madre è adulto, a ogni mezzanotte (fine dell'anno del bosco) matura
+// un anello. Si forma pagandolo in luce e scegliendo uno di tre tratti, che restano per sempre.
+// Gli anelli maturi non formati si accumulano: non si perde nulla saltando un giorno.
+export const RINGS = {
+  cost: (k) => ({ luce: Math.round(1e9 * 1.3 ** k) }),
+  choices: 3,
+}
+export const RING_TRAITS = [
+  { id: 'rigoglio', name: 'Rigoglio', icon: '🌿', fx: [{ t: 'all', x: 1.15 }] },
+  { id: 'luminoso', name: 'Anello luminoso', icon: '✨', fx: [{ t: 'res', id: 'luce', x: 1.3 }] },
+  { id: 'linfa', name: 'Linfa dolce', icon: '🍯', fx: [{ t: 'res', id: 'zuccheri', x: 1.3 }] },
+  { id: 'falda', name: 'Falda', icon: '💧', fx: [{ t: 'res', id: 'acqua', x: 1.4 }] },
+  { id: 'humus', name: 'Humus', icon: '🟤', fx: [{ t: 'res', id: 'nutrienti', x: 1.3 }] },
+  { id: 'catalisi', name: 'Catalisi', icon: '🧪', fx: [{ t: 'res', id: 'enzimi', x: 1.4 }] },
+  { id: 'cristallo', name: 'Cristallo', icon: '💎', fx: [{ t: 'res', id: 'minerali', x: 1.3 }] },
+  { id: 'sinapsi', name: 'Sinapsi', icon: '⚡', fx: [{ t: 'res', id: 'segnali', x: 1.4 }] },
+  { id: 'capienza', name: 'Legno denso', icon: '🫙', fx: [{ t: 'cap', x: 1.5 }] },
+  { id: 'fertile', name: 'Fertilità', icon: '🌬️', fx: [{ t: 'spore', x: 1.15 }] },
+  { id: 'scorza', name: 'Scorza dura', icon: '🛡️', fx: [{ t: 'season', x: 0.12 }] },
+  { id: 'passo', name: 'Passo lungo', icon: '🧭', fx: [{ t: 'expTime', x: 0.92 }] },
+  { id: 'fortuna', name: 'Fortuna', icon: '🍀', fx: [{ t: 'luck', x: 1.15 }] },
+  { id: 'economia', name: 'Parsimonia', icon: '🪙', fx: [{ t: 'cost', x: 0.9 }] },
+]
+export const RING_MILESTONES = [
+  { n: 3, fx: [{ t: 'slot', x: 1 }], text: '+1 spedizione contemporanea.' },
+  { n: 7, text: 'Sblocca le Caverne di cristallo.' },
+  { n: 14, fx: [{ t: 'slot', x: 1 }], text: '+1 spedizione contemporanea.' },
+  { n: 21, text: 'Sblocca le Radici del mondo.' },
+  { n: 30, fx: [{ t: 'all', x: 2 }], text: 'Anello d’oro: produzione ×2.' },
+  { n: 50, fx: [{ t: 'all', x: 2 }, { t: 'luck', x: 1.5 }], text: 'Anello d’argento: produzione ×2, fortuna +50%.' },
+  { n: 100, fx: [{ t: 'all', x: 3 }], text: 'Anello del secolo: produzione ×3.' },
+]
+
+// Spedizioni: le ife esplorano un bioma per ore reali e tornano con un reperto.
+// Il costo è una frazione della capienza attuale dei depositi.
+export const RARITIES = [
+  { id: 'comune', name: 'Comune' },
+  { id: 'raro', name: 'Raro' },
+  { id: 'epico', name: 'Epico' },
+  { id: 'leggendario', name: 'Leggendario' },
+]
+const HOUR = 3600e3
+export const BIOMES = [
+  { id: 'lettiera', name: 'Lettiera di foglie', icon: '🍂', ms: 1 * HOUR, cost: { nutrienti: 0.2 }, odds: [85, 15, 0, 0], desc: 'Appena sotto la superficie.' },
+  { id: 'sottosuolo', name: 'Sottosuolo profondo', icon: '🕳️', ms: 4 * HOUR, cost: { nutrienti: 0.25, acqua: 0.25 }, odds: [60, 32, 8, 0], req: (s) => s.life.maxTerr >= 5, hint: 'Conquista la Pietraia.', desc: 'Buio, freddo, pieno di sorprese.' },
+  { id: 'falda', name: 'Falda acquifera', icon: '🌊', ms: 8 * HOUR, cost: { acqua: 0.4, zuccheri: 0.3 }, odds: [40, 40, 18, 2], req: (s) => s.life.maxTerr >= 7, hint: 'Conquista la Palude.', desc: 'Le ife seguono l’acqua fin dove nessuno è arrivato.' },
+  { id: 'cristalli', name: 'Caverne di cristallo', icon: '💠', ms: 12 * HOUR, cost: { minerali: 0.4, enzimi: 0.3 }, odds: [0, 45, 45, 10], req: (s) => s.rings >= 7, hint: 'L’Albero Madre deve avere 7 anelli.', desc: 'Geodi enormi nella roccia.' },
+  { id: 'radici', name: 'Radici del mondo', icon: '🌍', ms: 24 * HOUR, cost: { luce: 0.5, segnali: 0.3 }, odds: [0, 0, 60, 40], req: (s) => s.rings >= 21, hint: 'L’Albero Madre deve avere 21 anelli.', desc: 'Dove si incontrano tutte le reti del mondo.' },
+]
+/** Le spedizioni si sbloccano conquistando questo territorio (Tronco caduto). */
+export const EXP_TERR = 4
+export const RELIC_MAX = 5
+
+// Reperti: r = indice in RARITIES. L'effetto si applica una volta per livello (max RELIC_MAX o `max`).
+export const RELICS = [
+  { id: 'ghianda', r: 0, name: 'Ghianda', icon: '🌰', fx: [{ t: 'b', id: 'ifa', x: 1.3 }] },
+  { id: 'rugiada', r: 0, name: 'Goccia di rugiada', icon: '💧', fx: [{ t: 'res', id: 'acqua', x: 1.2 }] },
+  { id: 'lombrico', r: 0, name: 'Lombrico', icon: '🪱', fx: [{ t: 'res', id: 'nutrienti', x: 1.2 }] },
+  { id: 'foglia', r: 0, name: 'Foglia scheletrica', icon: '🍁', fx: [{ t: 'b', id: 'micorriza', x: 1.25 }] },
+  { id: 'sasso', r: 0, name: 'Sasso levigato', icon: '🪨', fx: [{ t: 'cap', x: 1.2 }] },
+  { id: 'piuma', r: 0, name: 'Piuma', icon: '🪶', fx: [{ t: 'click', x: 2 }] },
+  { id: 'bacca', r: 0, name: 'Bacca di ginepro', icon: '🫐', fx: [{ t: 'res', id: 'zuccheri', x: 1.2 }] },
+  { id: 'lumaca', r: 0, name: 'Guscio di lumaca', icon: '🐌', fx: [{ t: 'res', id: 'segnali', x: 1.2 }] },
+  { id: 'ambra', r: 1, name: 'Ambra', icon: '🟠', fx: [{ t: 'all', x: 1.1 }] },
+  { id: 'conchiglia', r: 1, name: 'Conchiglia fossile', icon: '🐚', fx: [{ t: 'res', id: 'minerali', x: 1.3 }] },
+  { id: 'quarzo', r: 1, name: 'Quarzo', icon: '🔮', fx: [{ t: 'res', id: 'luce', x: 1.2 }] },
+  { id: 'seme_alato', r: 1, name: 'Seme alato', icon: '🪽', fx: [{ t: 'spore', x: 1.08 }] },
+  { id: 'ragno', r: 1, name: 'Tela di ragno', icon: '🕷️', fx: [{ t: 'b', id: 'nodo', x: 1.4 }] },
+  { id: 'formica', r: 1, name: 'Formica operaia', icon: '🐜', fx: [{ t: 'b', id: 'decompositore', x: 1.4 }] },
+  { id: 'corteccia', r: 1, name: 'Corteccia antica', icon: '🪵', fx: [{ t: 'season', x: 0.08 }] },
+  { id: 'fungo_fossile', r: 2, name: 'Fungo fossile', icon: '🦴', fx: [{ t: 'res', id: 'enzimi', x: 1.4 }] },
+  { id: 'lucciola', r: 2, name: 'Lucciola', icon: '🪲', fx: [{ t: 'res', id: 'luce', x: 1.4 }] },
+  { id: 'termitaio', r: 2, name: 'Termitaio', icon: '🏰', fx: [{ t: 'b', id: 'ghiandola', x: 1.5 }] },
+  { id: 'bussola', r: 2, name: 'Bussola di radici', icon: '🧭', fx: [{ t: 'expTime', x: 0.9 }] },
+  { id: 'quadrifoglio', r: 2, name: 'Quadrifoglio', icon: '🍀', fx: [{ t: 'luck', x: 1.2 }] },
+  { id: 'cuore', r: 3, name: 'Cuore di quercia', icon: '❤️‍🔥', fx: [{ t: 'all', x: 1.3 }] },
+  { id: 'spora_primordiale', r: 3, name: 'Spora primordiale', icon: '🧬', fx: [{ t: 'spore', x: 1.25 }] },
+  { id: 'mappa', r: 3, name: 'Mappa delle radici', icon: '🗺️', max: 2, fx: [{ t: 'slot', x: 1 }] },
+  { id: 'clessidra', r: 3, name: 'Clessidra di resina', icon: '⏳', fx: [{ t: 'expTime', x: 0.85 }] },
+]
+
 /** Bonus di ogni traguardo alla produzione (additivo). */
 export const ACH_BONUS = 0.02
 
@@ -188,10 +292,12 @@ export const ACHIEVEMENTS = [
     id: `luce_${i}`, icon: '✨', name: `Luce ${fmtN(n)}`, desc: `Produci ${n.toLocaleString('it-IT')} di luce in totale.`,
     test: (s) => (s.life.earned.luce ?? 0) >= n,
   })),
-  ...[5, 15, 25, RESEARCH.length].map((n) => ({
-    id: `rs_${n}`, icon: '🔬', name: n === RESEARCH.length ? 'Enciclopedia' : `${n} ricerche`,
+  // id stabili: rs_31 era "tutte le ricerche" quando erano 31
+  ...[5, 15, 25, 31].map((n) => ({
+    id: `rs_${n}`, icon: '🔬', name: `${n} ricerche`,
     desc: `Completa ${n} ricerche nella stessa partita.`, test: (s) => Object.keys(s.rs).length >= n,
   })),
+  { id: 'rs_all', icon: '📚', name: 'Enciclopedia', desc: 'Completa tutte le ricerche nella stessa partita.', test: (s) => RESEARCH.every((r) => s.rs[r.id]) },
   ...TERRITORIES.slice(1).map((t, i) => ({
     id: `terr_${i + 1}`, icon: t.icon, name: t.name, desc: `Conquista: ${t.name}.`, test: (s) => s.terr >= i + 1,
   })),
@@ -214,4 +320,23 @@ export const ACHIEVEMENTS = [
   })),
   ...[100, 1000, 1e4].map((n) => ({ id: `click_${n}`, icon: '👆', name: `${fmtN(n)} tocchi`, desc: `Tocca il terreno ${n.toLocaleString('it-IT')} volte.`, test: (s) => s.life.clicks >= n })),
   { id: 'all_seasons', icon: '🔄', name: 'Un anno intero', desc: 'Gioca in tutte e quattro le stagioni.', test: (s) => (s.seasonsSeen ?? []).length >= 4 },
+  // espansione
+  ...[1, 7, 14, 30, 60, 100].map((n) => ({
+    id: `ring_${n}`, icon: '🪵', name: n === 1 ? 'Primo anello' : `${n} anelli`,
+    desc: `L’Albero Madre forma ${n} anell${n === 1 ? 'o' : 'i'}.`, test: (s) => s.rings >= n,
+  })),
+  ...[1, 10, 50, 200, 500].map((n) => ({
+    id: `exp_${n}`, icon: '🎒', name: n === 1 ? 'Prima spedizione' : `${n} spedizioni`,
+    desc: `Riporta a casa ${n} spedizion${n === 1 ? 'e' : 'i'}.`, test: (s) => s.life.exp >= n,
+  })),
+  ...[5, 12, RELICS.length].map((n) => ({
+    id: `relic_${n}`, icon: '🏺', name: n === RELICS.length ? 'Museo del bosco' : `${n} reperti`,
+    desc: `Trova ${n} reperti diversi.`, test: (s) => Object.keys(s.relics).length >= n,
+  })),
+  ...RARITIES.slice(1).map((r, i) => ({
+    id: `relic_r${i + 1}`, icon: ['💙', '💜', '🧡'][i], name: `Reperto ${r.name.toLowerCase()}`,
+    desc: `Trova un reperto ${r.name.toLowerCase()}.`, test: (s) => RELICS.some((x) => x.r === i + 1 && s.relics[x.id]),
+  })),
+  { id: 'relic_max', icon: '⭐', name: 'Pezzo da museo', desc: `Porta un reperto al livello ${RELIC_MAX}.`, test: (s) => Object.values(s.relics).some((l) => l >= RELIC_MAX) },
+  { id: 'all_weather', icon: '🌈', name: 'Ogni tempo', desc: 'Vivi tutti i tipi di meteo.', test: (s) => s.weatherSeen.length >= WEATHER.length },
 ]
