@@ -1,11 +1,11 @@
 {
   "name": "Micelio",
-  "description": "Gioco incrementale: fai crescere una rete di funghi sotto il bosco. Stagioni legate all'ora del giorno, convertitori con riserve, territori, sporulazione e l'Albero Madre. Progressi anche offline, salvataggi cifrati nel browser",
+  "description": "Gioco incrementale: fai crescere una rete di funghi sotto il bosco. Stagioni legate all'ora del giorno e meteo quotidiano, convertitori con riserve, territori, sporulazione, l'Albero Madre e i suoi anelli, spedizioni a tempo reale e reperti da collezionare. Progressi anche offline, salvataggi cifrati nel browser",
   "icon": "🍄",
   "kind": "game",
   "tags": [
     "gioco"
   ],
   "createdAt": "2026-10-06",
-  "updatedAt": "2026-10-06"
+  "updatedAt": "2026-10-08"
 }

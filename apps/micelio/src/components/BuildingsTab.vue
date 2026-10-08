@@ -9,10 +9,10 @@ import CostList from './CostList.vue'
 const list = computed(() => {
   const s = game.value
   const d = derived.value
-  const si = E.seasonAt(now.value)
+  const clim = E.climateAt(s, now.value, d)
   return BUILDINGS.filter((b) => E.buildingVisible(s, b)).map((b) => {
     const n = s.b[b.id] ?? 0
-    const each = E.buildingMult(d, b.id) * E.seasonMult(si, b.main, d.season)
+    const each = E.buildingMult(d, b.id) * clim[b.main]
     const eff = live.value.eff[b.id]
     return {
       ...b, n, each, cost: E.buildingCost(s, b.id, d), max: E.maxAffordable(s, b.id, d),

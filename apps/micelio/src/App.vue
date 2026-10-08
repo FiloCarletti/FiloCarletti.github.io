@@ -1,14 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import ToastHost from '@shared/components/ToastHost.vue'
-import { DEBUG, away, game, importSave, loadError, resetGame, start, status } from './game/store.js'
-import { SPORE_TERR } from './game/engine.js'
+import { DEBUG, away, game, importSave, loadError, now, resetGame, start, status } from './game/store.js'
+import { SPORE_TERR, expUnlocked } from './game/engine.js'
 import SidePanel from './components/SidePanel.vue'
 import BuildingsTab from './components/BuildingsTab.vue'
 import ResearchTab from './components/ResearchTab.vue'
 import TerritoryTab from './components/TerritoryTab.vue'
 import SporeTab from './components/SporeTab.vue'
 import TreeTab from './components/TreeTab.vue'
+import ExpeditionsTab from './components/ExpeditionsTab.vue'
 import AchievementsTab from './components/AchievementsTab.vue'
 import OptionsTab from './components/OptionsTab.vue'
 import AwayModal from './components/AwayModal.vue'
@@ -18,7 +19,8 @@ const TABS = [
   { id: 'ricerca', label: 'Ricerca', icon: '🔬', comp: ResearchTab, show: (s) => s.seen.segnali },
   { id: 'territori', label: 'Territori', icon: '🗺️', comp: TerritoryTab, show: () => true },
   { id: 'spore', label: 'Spore', icon: '🌬️', comp: SporeTab, show: (s) => s.terr >= SPORE_TERR - 1 || s.life.spor > 0 },
-  { id: 'albero', label: 'Albero Madre', icon: '🌳', comp: TreeTab, show: (s) => s.seen.luce || s.tree > 0 },
+  { id: 'albero', label: 'Albero Madre', icon: '🌳', comp: TreeTab, show: (s) => s.seen.luce || s.tree > 0, badge: (s) => s.ringsReady },
+  { id: 'spedizioni', label: 'Spedizioni', icon: '🎒', comp: ExpeditionsTab, show: expUnlocked, badge: (s, t) => s.exp.filter((e) => e.end <= t).length },
   { id: 'traguardi', label: 'Traguardi', icon: '🏆', comp: AchievementsTab, show: () => true },
   { id: 'opzioni', label: 'Opzioni', icon: '⚙️', comp: OptionsTab, show: () => true },
 ]
@@ -88,6 +90,7 @@ async function doReset() {
             :aria-selected="current?.id === t.id" @click="tab = t.id"
           >
             <span aria-hidden="true">{{ t.icon }}</span> {{ t.label }}
+            <span v-if="t.badge?.(game, now)" class="mc-badge" :title="`${t.badge(game, now)} da fare`">{{ t.badge(game, now) }}</span>
           </button>
         </nav>
         <component :is="current.comp" v-if="current" />
@@ -128,6 +131,7 @@ async function doReset() {
   flex-shrink: 0; border: 1px solid var(--border); background: var(--surface); color: var(--muted);
   border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .9rem; cursor: pointer; white-space: nowrap;
 }
+.mc-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 2px; border-radius: 999px; background: var(--warn); color: #fff; font-size: .72rem; font-weight: 700; }
 .mc-tab.on { background: var(--primary-soft); color: var(--primary); border-color: transparent; font-weight: 600; }
 .mc-overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / .55); }
 @media (max-width: 820px) {

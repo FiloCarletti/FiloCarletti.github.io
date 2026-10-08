@@ -27,6 +27,12 @@ const close = () => (away.value = null)
       <p v-if="away.rows.some((r) => r.full)" class="small warn" style="margin: 0">
         ⚠ Alcuni depositi si sono riempiti: ingrandiscili (⬆) per non sprecare la produzione la prossima volta.
       </p>
+      <p v-if="away.rings > 0" class="small" style="margin: 0">
+        🪵 {{ away.rings === 1 ? 'È maturato un nuovo anello' : `Sono maturati ${away.rings} anelli` }}: formali nella scheda Albero Madre.
+      </p>
+      <p v-if="away.expBack.length" class="small" style="margin: 0">
+        🎒 Spedizioni tornate: {{ away.expBack.map((b) => `${b.icon} ${b.name}`).join(', ') }}. Raccoglile nella scheda Spedizioni.
+      </p>
       <p v-if="away.ach.length" class="small" style="margin: 0">🏆 Nuovi traguardi: {{ away.ach.map((a) => a.name).join(', ') }}</p>
       <button class="btn btn-primary" style="align-self: flex-end" @click="close">Continua</button>
     </div>

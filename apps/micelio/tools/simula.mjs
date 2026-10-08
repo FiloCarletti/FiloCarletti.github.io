@@ -1,15 +1,23 @@
 // Simulatore di bilanciamento: un giocatore "ragionevole" gioca a Micelio per N giorni.
 //   node apps/micelio/tools/simula.mjs [giorni=40] [sessioni al giorno=4]
+//   PROFILO=attivo node …  → gioca come un umano assiduo: 4 ore il primo giorno, poi 20 minuti ogni 2 ore
 // Il primo giorno gioca un'ora di fila, poi qualche minuto per sessione; tra una sessione
 // e l'altra il gioco avanza offline. Stampa i traguardi principali e un riepilogo per giorno.
-// Riferimento attuale (4 sessioni/giorno): Radura ~g 20, Albero Madre completo ~g 47.
+// Riferimento (v2, PROFILO=attivo): Albero Madre completo ~g 7, ~22 anelli e collezione dei reperti ~g 30;
+// un giocatore reale assiduo ha completato l'Albero in ~3 giorni, quindi i contenuti lunghi sono legati al tempo reale.
 // Un giocatore umano attento è più veloce del bot: l'obiettivo è che il gioco duri ben oltre 30 giorni.
 import { BUILDINGS, GENOME, RESEARCH, TERRITORIES, TREE } from '../src/game/data.js'
 import {
   advance, buildingCost, buyBuilding, buyGenome, buyResearch, canAfford, checkProgress, click, conquer,
   derive, genomeCost, genomeMaxed, growTree, newState, researchAvailable, researchCost, sporeGain, sporulate,
   territoryAt, treeCost, upgradeStorage, RES_IDS, buildingVisible,
+  BIOME, biomeAvailable, collectExpedition, expUnlocked, formRing, ringChoices, startExpedition,
 } from '../src/game/engine.js'
+import { BIOMES } from '../src/game/data.js'
+
+const ACTIVE = process.env.PROFILO === 'attivo'
+// Tratti preferiti dal bot, in ordine
+const TRAIT_PREF = ['luminoso', 'rigoglio', 'fortuna', 'passo', 'catalisi', 'capienza']
 
 const DAYS = Number(process.argv[2] ?? 40)
 const SESSIONS = Number(process.argv[3] ?? 4)
@@ -30,6 +38,19 @@ function tick(ms) {
 }
 
 function act() {
+  // spedizioni: raccogli quelle tornate, poi parti verso il bioma più lungo disponibile
+  for (let i = s.exp.length - 1; i >= 0; i--) {
+    const r = collectExpedition(s, i, now)
+    if (r && r.isNew && r.relic.r >= 2) note(`🏺 ${r.relic.name} (${['comune', 'raro', 'epico', 'leggendario'][r.relic.r]})`)
+  }
+  if (expUnlocked(s)) for (const b of [...BIOMES].reverse()) if (biomeAvailable(s, b) && startExpedition(s, b.id, now)) break
+  // anelli: il tratto preferito tra quelli proposti
+  while (s.ringsReady > 0) {
+    const ch = ringChoices(s)
+    const pick = TRAIT_PREF.find((x) => ch.includes(x)) ?? ch[0]
+    if (!formRing(s, pick)) break
+    if (s.rings % 5 === 0 || s.rings === 1) note(`🪵 Anello ${s.rings}`)
+  }
   let any = true
   let guard = 0
   while (any && guard++ < 500) {
@@ -76,24 +97,24 @@ function session(minutes, clicks) {
   }
 }
 
-// giorno 0: un'ora di gioco attivo (con tocchi per i primi 10 minuti)
+// giorno 0: un'ora di gioco attivo (con tocchi per i primi 10 minuti); 4 ore per il profilo attivo
 session(10, true)
-session(50, false)
-const hours = [8, 13, 19, 22.5].slice(0, SESSIONS)
+session(ACTIVE ? 230 : 50, false)
+const hours = ACTIVE ? [8, 10, 12, 14, 16, 18, 20, 22] : [8, 13, 19, 22.5].slice(0, SESSIONS)
 const summary = []
 for (let dd = 0; dd < DAYS; dd++) {
   const base = new Date(2026, 0, 6 + dd).getTime()
   for (const h of hours) {
     const at = base + h * HOUR
     if (at > now) tick(at - now)
-    session(5, false)
+    session(ACTIVE ? 20 : 5, false)
   }
   const d = derive(s)
   summary.push(
     `g ${String(dd + 1).padStart(3)}  terr ${String(s.terr).padStart(2)}  rs ${String(Object.keys(s.rs).length).padStart(2)}/${RESEARCH.length}`
     + `  spor ${String(s.life.spor).padStart(2)}  spore ${fmt(s.life.sporeTot).padStart(8)}  albero ${String(s.tree).padStart(2)}/${TREE.stages}`
     + `  ach ${String(Object.keys(s.ach).length).padStart(3)}  mult ${fmt(d.all).padStart(8)}  nutr ${fmt(s.run.earned.nutrienti).padStart(9)}`
-    + `  b: ${BUILDINGS.map((b) => s.b[b.id] ?? 0).join('/')}`,
+    + `  anelli ${String(s.rings).padStart(3)}+${s.ringsReady}  reperti ${Object.keys(s.relics).length}/${Object.values(s.relics).reduce((a, b) => a + b, 0)}  sped ${s.life.exp}`,
   )
 }
 // DIAG=1: depositi, risorse, flussi e costi alla fine (per capire dove si blocca)
