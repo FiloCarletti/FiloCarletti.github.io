@@ -1,0 +1,18 @@
+{
+  "name": "Burraco",
+  "description": "Burraco contro i bot (1 contro 1 o 2 contro 2, cinque strategie con difficoltà calcolata da un torneo simulato) e segnapunti per le partite dal vivo: mani con base e carte, totali, mancanti all'obiettivo, differenza e statistiche",
+  "icon": "🃏",
+  "dataMode": "mixed",
+  "tables": [
+    "burraco_partite",
+    "burraco_mani",
+    "burraco_sfide"
+  ],
+  "tags": [
+    "carte",
+    "giochi",
+    "statistiche"
+  ],
+  "createdAt": "2026-10-20",
+  "updatedAt": "2026-10-20"
+}
