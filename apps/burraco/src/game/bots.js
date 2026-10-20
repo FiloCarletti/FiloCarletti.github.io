@@ -6,7 +6,7 @@ import { cardValue, isJoker, isWild, rankOf, suitOf, sumValues } from './cards.j
 import { analyzeMeld, findCombos, BURRACO_LEN } from './melds.js'
 import {
   attach, canTakePozzetto, discard, discardError, drawStock, handAfterError, hasBurraco, meldNew,
-  takeDiscard, teamOf, POINTS,
+  burracoPoints, takeDiscard, teamOf, POINTS,
 } from './rules.js'
 
 /*
@@ -176,9 +176,9 @@ function options(st, seat, P, rng, { minHand = 0 } = {}) {
     const len = o.a.len
     const wasLen = before ? before.len : 0
     let sc = sumValues(o.ids)
-    if (len >= BURRACO_LEN && wasLen < BURRACO_LEN) sc += o.a.clean ? POINTS.pulito : POINTS.sporco
+    if (len >= BURRACO_LEN && wasLen < BURRACO_LEN) sc += burracoPoints(st, o.a)
     if (before && before.clean && !o.a.clean) {
-      sc -= before.len >= BURRACO_LEN ? POINTS.pulito - POINTS.sporco + P.dirtyPen : P.dirtyPen * Math.min(1, before.len / 6)
+      sc -= before.len >= BURRACO_LEN ? POINTS.pulito - burracoPoints(st, o.a) + P.dirtyPen : P.dirtyPen * Math.min(1, before.len / 6)
     }
     if (!before && !o.a.clean) sc -= P.dirtyPen * 0.4
     sc += P.progW * (Math.min(len, BURRACO_LEN) - Math.min(wasLen, BURRACO_LEN))

@@ -12,25 +12,29 @@
 //
 // Posti: 0 = tu, poi in senso di gioco. Squadra di un posto = posto % 2 (in 2 contro 2: 0 e 2 contro 1 e 3).
 import { cardValue, isWild, newDeck, sumValues } from './cards.js'
-import { analyzeMeld, isBurraco, BURRACO_LEN } from './melds.js'
+import { analyzeMeld, burracoKind, isBurraco, BURRACO_LEN } from './melds.js'
 
 export const HAND_SIZE = 11
 /** Limite di sicurezza: oltre questo numero di turni la mano finisce come a tallone esaurito. */
 export const MAX_TURNS = 300
-export const POINTS = { pulito: 200, sporco: 100, chiusura: 100, pozzetto: 100 }
+export const POINTS = { pulito: 200, semipulito: 150, sporco: 100, chiusura: 100, pozzetto: 100 }
 export const GOALS = [1005, 1505, 2005, 2505, 3005]
 
 export class RuleError extends Error {}
 const fail = (msg) => { throw new RuleError(msg) }
 export const teamOf = (seat) => seat % 2
 
-export function newHand({ nPlayers = 2, dealer = 0, rng = Math.random } = {}) {
+/**
+ * rules: varianti facoltative. semi = burraco semipulito (7 naturali consecutive e poi la matta) da 150.
+ */
+export function newHand({ nPlayers = 2, dealer = 0, rng = Math.random, rules = {} } = {}) {
   const deck = newDeck(rng)
   const hands = Array.from({ length: nPlayers }, () => deck.splice(0, HAND_SIZE))
   const pozzetti = [deck.splice(0, HAND_SIZE), deck.splice(0, HAND_SIZE)]
   const discard = [deck.pop()]
   return {
     n: nPlayers,
+    rules: { semi: !!rules.semi },
     hands,
     pozzetti,
     stock: deck,
@@ -64,6 +68,10 @@ const say = (st, seat, text) => { st.log.push({ seat, text }); if (st.log.length
 export const canTakePozzetto = (st, team) => !st.took[team] && st.pozzetti.length > 0
 export const hasBurraco = (melds) => melds.some((m) => m.cards.length >= BURRACO_LEN)
 export const meldInfo = (m) => analyzeMeld(m.cards, m.type)
+/** Tipo del burraco con le regole della mano ('pulito' | 'semipulito' | 'sporco' | null). */
+export const kindOf = (st, a) => burracoKind(a, !!st.rules?.semi)
+/** Punti bonus di una combinazione (0 se non è un burraco). */
+export const burracoPoints = (st, a, points = POINTS) => { const k = kindOf(st, a); return k ? points[k] : 0 }
 /** La squadra del posto può chiudere (pozzetto preso e almeno un burraco)? */
 export const canClose = (st, seat) => st.took[teamOf(seat)] && hasBurraco(st.melds[teamOf(seat)])
 
@@ -167,7 +175,7 @@ export function attach(st, seat, meldId, ids) {
   const m = st.melds[teamOf(seat)].find((x) => x.id === meldId)
   const wasBurraco = m.cards.length >= BURRACO_LEN
   m.cards.push(...ids)
-  say(st, seat, !wasBurraco && m.cards.length >= BURRACO_LEN ? `fa burraco ${r.a.clean ? 'pulito' : 'sporco'}!` : `attacca ${ids.length} ${ids.length === 1 ? 'carta' : 'carte'}`)
+  say(st, seat, !wasBurraco && m.cards.length >= BURRACO_LEN ? `fa burraco ${kindOf(st, r.a)}!` : `attacca ${ids.length} ${ids.length === 1 ? 'carta' : 'carte'}`)
   if (!st.hands[seat].length) takePozzetto(st, seat, 'meld')
   return m
 }
@@ -217,30 +225,30 @@ export function discard(st, seat, id) {
 
 /**
  * Punteggio della mano per squadra:
- * { tavola, mano, puliti, sporchi, chiusura, pozzetto, base, carte, totale }.
+ * { tavola, mano, puliti, semipuliti, sporchi, chiusura, pozzetto, base, carte, totale }.
  * base = burraco + chiusura − pozzetto non preso; carte = tavola − mano.
  */
 export function scoreHand(st, points = POINTS) {
   return [0, 1].map((t) => {
     const melds = st.melds[t]
     let puliti = 0
+    let semipuliti = 0
     let sporchi = 0
     let tavola = 0
     for (const m of melds) {
       tavola += sumValues(m.cards)
-      if (m.cards.length >= BURRACO_LEN) {
-        const a = meldInfo(m)
-        if (a?.clean) puliti++
-        else sporchi++
-      }
+      const k = kindOf(st, meldInfo(m))
+      if (k === 'pulito') puliti++
+      else if (k === 'semipulito') semipuliti++
+      else if (k === 'sporco') sporchi++
     }
     let mano = 0
     for (let s = 0; s < st.n; s++) if (teamOf(s) === t) mano += sumValues(st.hands[s])
     const chiusura = st.closer != null && teamOf(st.closer) === t
     const pozzetto = st.took[t]
-    const base = puliti * points.pulito + sporchi * points.sporco + (chiusura ? points.chiusura : 0) - (pozzetto ? 0 : points.pozzetto)
+    const base = puliti * points.pulito + semipuliti * points.semipulito + sporchi * points.sporco + (chiusura ? points.chiusura : 0) - (pozzetto ? 0 : points.pozzetto)
     const carte = tavola - mano
-    return { tavola, mano, puliti, sporchi, chiusura, pozzetto, base, carte, totale: base + carte }
+    return { tavola, mano, puliti, semipuliti, sporchi, chiusura, pozzetto, base, carte, totale: base + carte }
   })
 }
 
@@ -249,7 +257,7 @@ export function liveScore(st, t) {
   let v = 0
   for (const m of st.melds[t]) {
     v += sumValues(m.cards)
-    if (m.cards.length >= BURRACO_LEN) v += meldInfo(m)?.clean ? POINTS.pulito : POINTS.sporco
+    v += burracoPoints(st, meldInfo(m))
   }
   return v
 }
@@ -260,7 +268,7 @@ export function liveScore(st, t) {
  * Nuova partita contro i bot.
  * seats: [{ name, bot }] in ordine di gioco (posto 0 = l'umano, bot null).
  */
-export function newMatch({ mode = '1v1', target = 2005, seats, rng = Math.random }) {
+export function newMatch({ mode = '1v1', target = 2005, seats, semi = false, rng = Math.random }) {
   const n = mode === '2v2' ? 4 : 2
   const dealer = Math.floor(rng() * n)
   return {
@@ -273,7 +281,8 @@ export function newMatch({ mode = '1v1', target = 2005, seats, rng = Math.random
     history: [],
     dealer,
     handNo: 1,
-    hand: newHand({ nPlayers: n, dealer, rng }),
+    rules: { semi: !!semi },
+    hand: newHand({ nPlayers: n, dealer, rng, rules: { semi } }),
     startedAt: Date.now(),
     winner: null,
     over: false,
@@ -300,7 +309,7 @@ export function nextHand(match, rng = Math.random) {
   if (match.over) fail('La partita è finita')
   match.dealer = (match.dealer + 1) % match.n
   match.handNo++
-  match.hand = newHand({ nPlayers: match.n, dealer: match.dealer, rng })
+  match.hand = newHand({ nPlayers: match.n, dealer: match.dealer, rng, rules: match.rules ?? {} })
 }
 
 export const handValue = (cards) => cards.reduce((a, c) => a + cardValue(c), 0)

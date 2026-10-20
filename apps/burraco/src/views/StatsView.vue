@@ -56,10 +56,10 @@ const live = computed(() => {
       if (winner === i) t.vinte++
       t.mani += s.n
       t.punti += s.teams[i].totale
-      t.burraco += s.teams[i].puliti + s.teams[i].sporchi
+      t.burraco += s.teams[i].puliti + s.teams[i].semipuliti + s.teams[i].sporchi
       t.chiusure += s.teams[i].chiusure
       teams.set(key, t)
-      burraco += s.teams[i].puliti + s.teams[i].sporchi
+      burraco += s.teams[i].puliti + s.teams[i].semipuliti + s.teams[i].sporchi
       pts += s.teams[i].totale
       for (const r of s.rows) {
         if (!best || r.pts[i].totale > best.value) best = { value: r.pts[i].totale, name, date: p.data }

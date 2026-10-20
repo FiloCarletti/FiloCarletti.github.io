@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { analyzeMeld, BURRACO_LEN } from '../game/melds.js'
+import { analyzeMeld, burracoKind } from '../game/melds.js'
 import PlayingCard from './PlayingCard.vue'
 
 const props = defineProps({
@@ -8,15 +8,18 @@ const props = defineProps({
   target: Boolean, // si possono attaccare le carte selezionate
   hinted: Boolean,
   interactive: Boolean,
+  semi: Boolean, // regola del burraco semipulito attiva
 })
 defineEmits(['tap'])
 
 const a = computed(() => analyzeMeld(props.meld.cards, props.meld.type))
 const order = computed(() => a.value?.order ?? props.meld.cards)
-const burraco = computed(() => props.meld.cards.length >= BURRACO_LEN)
+const kind = computed(() => burracoKind(a.value, props.semi))
+const burraco = computed(() => !!kind.value)
+const TAGS = { pulito: 'P', semipulito: 'SP', sporco: 'S' }
 const label = computed(() => {
   const n = props.meld.cards.length
-  if (burraco.value) return a.value?.clean ? 'Burraco pulito' : 'Burraco sporco'
+  if (burraco.value) return `Burraco ${kind.value}`
   return `${props.meld.type === 'seq' ? 'Scala' : 'Tris'} di ${n}${a.value && !a.value.clean ? ', sporca' : ''}`
 })
 </script>
@@ -26,7 +29,7 @@ const label = computed(() => {
     :is="interactive ? 'button' : 'div'"
     :type="interactive ? 'button' : undefined"
     class="meld"
-    :class="{ target, hinted, burraco, clean: burraco && a?.clean }"
+    :class="{ target, hinted, burraco, clean: kind === 'pulito', semi: kind === 'semipulito' }"
     :aria-label="interactive ? `Attacca a: ${label}` : label"
     :title="label"
     @click="interactive && $emit('tap', meld.id)"
@@ -34,7 +37,7 @@ const label = computed(() => {
     <span class="cards">
       <PlayingCard v-for="c in order" :key="c" :id="c" size="sm" />
     </span>
-    <span v-if="burraco" class="tag">{{ a?.clean ? 'P' : 'S' }}</span>
+    <span v-if="burraco" class="tag">{{ TAGS[kind] }}</span>
   </component>
 </template>
 
@@ -56,4 +59,6 @@ button.meld { cursor: pointer; }
   font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center; background: #868e96; color: #fff;
 }
 .clean .tag { background: #e8a200; }
+.burraco.semi { background: color-mix(in srgb, #fab005 11%, transparent); }
+.semi .tag { background: #b08a3e; }
 </style>

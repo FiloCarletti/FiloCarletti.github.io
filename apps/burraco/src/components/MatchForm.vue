@@ -17,6 +17,8 @@ const f = reactive({
   ...(props.initial ?? {}),
 })
 const custom = ref(!GOAL_PRESETS.includes(f.obiettivo))
+const semi = ref(f.punti_semipulito != null)
+if (f.punti_semipulito == null) f.punti_semipulito = 150
 const advanced = ref(Object.keys(DEFAULT_VALUES).some((k) => f[k] !== DEFAULT_VALUES[k]))
 
 function submit() {
@@ -33,6 +35,7 @@ function submit() {
     punti_sporco: n(f.punti_sporco, 0, 1000),
     punti_chiusura: n(f.punti_chiusura, 0, 1000),
     penalita_pozzetto: n(f.penalita_pozzetto, 0, 1000),
+    punti_semipulito: semi.value ? n(f.punti_semipulito, 0, 1000) : null,
   })
 }
 </script>
@@ -57,6 +60,16 @@ function submit() {
         <button type="button" role="radio" :aria-checked="custom" :class="{ on: custom }" @click="custom = true">Altro</button>
       </div>
       <input v-if="custom" v-model.number="f.obiettivo" class="input narrow" type="number" min="100" max="20000" step="5" aria-label="Obiettivo personalizzato" />
+    </div>
+
+    <div class="semi">
+      <label class="check">
+        <input v-model="semi" type="checkbox" />
+        <span><strong>Burraco semipulito</strong> <span class="muted small">· 7 carte naturali consecutive e poi la matta</span></span>
+      </label>
+      <label v-if="semi" class="row small">
+        vale <input v-model.number="f.punti_semipulito" class="input pts" type="number" min="0" max="1000" step="5" aria-label="Punti del burraco semipulito" />
+      </label>
     </div>
 
     <label class="field narrow"><span>Data</span><input v-model="f.data" class="input" type="date" required /></label>
@@ -88,6 +101,10 @@ function submit() {
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .narrow { max-width: 200px; }
 input.narrow { margin-top: 6px; }
+.semi { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.check input { margin-top: 4px; }
+.pts { width: 90px; padding: 5px 8px; }
 .values { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 @media (max-width: 400px) { .teams { grid-template-columns: 1fr; } }
 </style>

@@ -30,6 +30,7 @@ import { RouterLink } from 'vue-router'
             <tr><td>Dal 3 al 7</td><td class="num">5</td></tr>
             <tr><td>Burraco pulito (senza matte)</td><td class="num">+200</td></tr>
             <tr><td>Burraco sporco (con una matta)</td><td class="num">+100</td></tr>
+            <tr><td>Burraco semipulito (facoltativo): almeno 7 carte naturali consecutive e poi la matta</td><td class="num">+150</td></tr>
             <tr><td>Chiusura</td><td class="num">+100</td></tr>
             <tr><td>Pozzetto non preso</td><td class="num">−100</td></tr>
           </tbody>

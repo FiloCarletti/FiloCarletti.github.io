@@ -91,7 +91,7 @@ async function saveResult() {
   if (!canWrite.value || !spaceId.value) { x.saved = 'skip'; return }
   saving.value = true
   try {
-    const burraco = x.history.reduce((a, h) => a + h.score[0].puliti + h.score[0].sporchi, 0)
+    const burraco = x.history.reduce((a, h) => a + h.score[0].puliti + (h.score[0].semipuliti ?? 0) + h.score[0].sporchi, 0)
     const chiusure = x.history.filter((h) => h.closer != null && teamOf(h.closer) === 0).length
     unwrap(await supabase.from(T.sfide).insert({
       space_id: spaceId.value,
@@ -119,7 +119,7 @@ watch(() => m.value?.over, (v) => { if (v) saveResult() }, { immediate: true })
 
 function rematch() {
   const x = m.value
-  startMatch({ mode: x.mode, target: x.target, opp: x.opp, partner: x.partner ?? 'stratega' })
+  startMatch({ mode: x.mode, target: x.target, opp: x.opp, partner: x.partner ?? 'stratega', semi: !!x.rules?.semi })
 }
 function exitFinished() {
   continueAfterSummary()
@@ -169,7 +169,7 @@ function exitFinished() {
         <span class="badge" :class="{ 'badge-primary': st.took[1] }">{{ st.took[1] ? 'pozzetto preso' : 'senza pozzetto' }}</span>
       </div>
       <div class="melds">
-        <MeldView v-for="x in st.melds[1]" :key="x.id" :meld="x" />
+        <MeldView v-for="x in st.melds[1]" :key="x.id" :meld="x" :semi="!!st.rules?.semi" />
         <span v-if="!st.melds[1].length" class="muted small">Nessuna combinazione</span>
       </div>
     </section>
@@ -200,7 +200,7 @@ function exitFinished() {
       </div>
       <div class="melds">
         <MeldView
-          v-for="x in st.melds[0]" :key="x.id" :meld="x"
+          v-for="x in st.melds[0]" :key="x.id" :meld="x" :semi="!!st.rules?.semi"
           :interactive="myTurn && phase === 'play' && sel.length > 0"
           :target="attachTargets.has(x.id)" :hinted="hintMeld === x.id"
           @tap="tapMeld"

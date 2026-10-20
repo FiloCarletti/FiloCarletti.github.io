@@ -1,5 +1,5 @@
 // Conti del segnapunti dal vivo: punti di ogni mano, totali, mancanti all'obiettivo e statistiche.
-// Base = burraco puliti e sporchi + chiusura − pozzetto non preso + rettifiche; carte = in tavola − in mano.
+// Base = burraco puliti, semipuliti (se la partita li usa) e sporchi + chiusura − pozzetto non preso + rettifiche; carte = in tavola − in mano.
 
 export const TEAMS = ['a', 'b']
 export const GOAL_PRESETS = [1005, 1505, 2005, 2505, 3005]
@@ -7,25 +7,29 @@ export const DEFAULT_VALUES = { punti_pulito: 200, punti_sporco: 100, punti_chiu
 
 export const emptyRound = () => ({
   chiusura: null,
-  puliti_a: 0, sporchi_a: 0, pozzetto_a: true, tavola_a: 0, mano_a: 0, extra_a: 0,
-  puliti_b: 0, sporchi_b: 0, pozzetto_b: true, tavola_b: 0, mano_b: 0, extra_b: 0,
+  puliti_a: 0, semipuliti_a: 0, sporchi_a: 0, pozzetto_a: true, tavola_a: 0, mano_a: 0, extra_a: 0,
+  puliti_b: 0, semipuliti_b: 0, sporchi_b: 0, pozzetto_b: true, tavola_b: 0, mano_b: 0, extra_b: 0,
   note: '',
 })
+
+/** La partita usa il burraco semipulito? (punti_semipulito null = no) */
+export const usesSemi = (p) => p?.punti_semipulito != null
 
 /** Punti di una mano per le due squadre, con i valori della partita p. */
 export function roundPoints(m, p) {
   return TEAMS.map((t) => {
     const puliti = m[`puliti_${t}`] ?? 0
     const sporchi = m[`sporchi_${t}`] ?? 0
+    const semipuliti = usesSemi(p) ? m[`semipuliti_${t}`] ?? 0 : 0
     const chiusura = m.chiusura === t
     const pozzetto = m[`pozzetto_${t}`] !== false
     const tavola = m[`tavola_${t}`] ?? 0
     const mano = m[`mano_${t}`] ?? 0
     const extra = m[`extra_${t}`] ?? 0
-    const burraco = puliti * p.punti_pulito + sporchi * p.punti_sporco
+    const burraco = puliti * p.punti_pulito + semipuliti * (p.punti_semipulito ?? 0) + sporchi * p.punti_sporco
     const base = burraco + (chiusura ? p.punti_chiusura : 0) - (pozzetto ? 0 : p.penalita_pozzetto) + extra
     const carte = tavola - mano
-    return { puliti, sporchi, chiusura, pozzetto, tavola, mano, extra, burraco, base, carte, totale: base + carte }
+    return { puliti, semipuliti, sporchi, chiusura, pozzetto, tavola, mano, extra, burraco, base, carte, totale: base + carte }
   })
 }
 
@@ -45,7 +49,7 @@ export function summarize(p, mani) {
   let leader = null
   let leadChanges = 0
   let maxLead = { team: null, value: 0, n: null }
-  const team = () => ({ base: 0, carte: 0, totale: 0, puliti: 0, sporchi: 0, chiusure: 0, pozzMancati: 0, tavola: 0, mano: 0, best: null, worst: null, vinte: 0 })
+  const team = () => ({ base: 0, carte: 0, totale: 0, puliti: 0, semipuliti: 0, sporchi: 0, chiusure: 0, pozzMancati: 0, tavola: 0, mano: 0, best: null, worst: null, vinte: 0 })
   const st = [team(), team()]
   for (const m of rounds) {
     const pts = roundPoints(m, p)
@@ -56,6 +60,7 @@ export function summarize(p, mani) {
       s.carte += x.carte
       s.totale += x.totale
       s.puliti += x.puliti
+      s.semipuliti += x.semipuliti
       s.sporchi += x.sporchi
       s.tavola += x.tavola
       s.mano += x.mano

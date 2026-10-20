@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { supabase, unwrap, toast, useSpace, fmtDate } from '@shared'
 import { T } from '../db.js'
-import { fmtPts, summarize } from '../lib/score.js'
+import { fmtPts, summarize, usesSemi } from '../lib/score.js'
 import { accent, accent2, cssVar } from '../lib/theme.js'
 import RoundForm from '../components/RoundForm.vue'
 import MatchForm from '../components/MatchForm.vue'
@@ -223,13 +223,14 @@ const fmtAvg = (v) => (Number.isFinite(v) ? Math.round(v).toLocaleString('it-IT'
           <span class="det">
             {{ r.pts[i].base }} + {{ r.pts[i].carte }}
             <template v-if="r.pts[i].puliti"> · {{ r.pts[i].puliti }}P</template>
+            <template v-if="r.pts[i].semipuliti"> · {{ r.pts[i].semipuliti }}SP</template>
             <template v-if="r.pts[i].sporchi"> · {{ r.pts[i].sporchi }}S</template>
             <template v-if="r.pts[i].chiusura"> · chiude</template>
             <template v-if="!r.pts[i].pozzetto"> · no pozz.</template>
           </span>
         </span>
       </component>
-      <p class="muted small legend">Punti della mano (base + carte) e totale progressivo. P = burraco puliti, S = sporchi.</p>
+      <p class="muted small legend">Punti della mano (base + carte) e totale progressivo. P = burraco puliti,<template v-if="usesSemi(p)"> SP = semipuliti ({{ p.punti_semipulito }}),</template> S = sporchi.</p>
     </section>
 
     <template v-if="s.n">
@@ -243,7 +244,7 @@ const fmtAvg = (v) => (Number.isFinite(v) ? Math.round(v).toLocaleString('it-IT'
               <StatTile label="Mani alla meta" :value="s.teams[i].eta == null ? '—' : s.teams[i].eta" hint="con la media attuale" />
               <StatTile label="Miglior mano" :value="fmtPts(s.teams[i].best.value)" :hint="`mano ${s.teams[i].best.n}`" />
               <StatTile label="Peggior mano" :value="fmtPts(s.teams[i].worst.value)" :hint="`mano ${s.teams[i].worst.n}`" />
-              <StatTile label="Burraco" :value="s.teams[i].puliti + s.teams[i].sporchi" :hint="`${s.teams[i].puliti} puliti · ${s.teams[i].sporchi} sporchi`" />
+              <StatTile label="Burraco" :value="s.teams[i].puliti + s.teams[i].semipuliti + s.teams[i].sporchi" :hint="`${s.teams[i].puliti} puliti${usesSemi(p) ? ` · ${s.teams[i].semipuliti} semi` : ''} · ${s.teams[i].sporchi} sporchi`" />
               <StatTile label="Chiusure" :value="s.teams[i].chiusure" :hint="`su ${s.n} mani`" />
               <StatTile label="Mani vinte" :value="s.teams[i].vinte" :hint="`${Math.round(s.teams[i].vinte / s.n * 100)}%`" />
               <StatTile label="Pozzetti mancati" :value="s.teams[i].pozzMancati" />

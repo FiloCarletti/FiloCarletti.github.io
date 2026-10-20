@@ -48,7 +48,7 @@ function pick(key, v) { prefs[key] = v; savePrefs() }
 
 function start() {
   if (current.value && !confirm('C’è una partita in corso: abbandonarla e iniziarne una nuova?')) return
-  startMatch({ mode: prefs.mode, target: prefs.target, opp: prefs.opp, partner: prefs.partner })
+  startMatch({ mode: prefs.mode, target: prefs.target, opp: prefs.opp, partner: prefs.partner, semi: prefs.semi })
   router.push('/tavolo')
 }
 function abandon() {
@@ -61,7 +61,7 @@ const oppName = (m) => `${STRATEGIES[m.opp]?.emoji ?? ''} ${STRATEGIES[m.opp]?.n
   <div class="stack" style="gap: 16px">
     <div v-if="current" class="card resume">
       <div>
-        <div class="muted small">Partita in corso · {{ current.mode === '2v2' ? '2 contro 2' : '1 contro 1' }} contro {{ oppName(current) }}</div>
+        <div class="muted small">Partita in corso · {{ current.mode === '2v2' ? '2 contro 2' : '1 contro 1' }} contro {{ oppName(current) }}<template v-if="current.rules?.semi"> · con semipulito</template></div>
         <strong class="big">{{ current.scores[0] }} – {{ current.scores[1] }}</strong>
         <span class="muted small"> a {{ current.target }} · mano {{ current.handNo }}</span>
       </div>
@@ -116,6 +116,14 @@ const oppName = (m) => `${STRATEGIES[m.opp]?.emoji ?? ''} ${STRATEGIES[m.opp]?.n
         </select>
       </label>
 
+      <label class="check">
+        <input type="checkbox" :checked="prefs.semi" @change="pick('semi', $event.target.checked)" />
+        <span>
+          <strong>Burraco semipulito (150)</strong>
+          <span class="muted small"> · 7 carte naturali consecutive e poi la matta valgono 150 invece di 100</span>
+        </span>
+      </label>
+
       <label class="field">
         <span>Velocità dei bot</span>
         <select class="select" :value="prefs.speed" @change="pick('speed', $event.target.value)">
@@ -144,6 +152,8 @@ const oppName = (m) => `${STRATEGIES[m.opp]?.emoji ?? ''} ${STRATEGIES[m.opp]?.n
 .seg.wrap { flex-wrap: wrap; }
 .seg button { flex: 1; padding: 7px 10px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.check input { margin-top: 4px; }
 .goal-input { max-width: 160px; margin-top: 6px; }
 .bots { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .bot {

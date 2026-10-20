@@ -2,7 +2,7 @@
 // Inserimento o modifica di una mano dal vivo: per ogni squadra burraco puliti e sporchi, pozzetto,
 // carte in tavola e in mano (ed eventuale rettifica); in alto chi ha chiuso.
 import { computed, reactive, ref } from 'vue'
-import { emptyRound, fmtPts, roundPoints, TEAMS } from '../lib/score.js'
+import { emptyRound, fmtPts, roundPoints, TEAMS, usesSemi } from '../lib/score.js'
 import Stepper from './Stepper.vue'
 
 const props = defineProps({
@@ -35,7 +35,7 @@ const warnings = computed(() => {
   }
   if (f.chiusura) {
     const t = f.chiusura
-    if (!f[`puliti_${t}`] && !f[`sporchi_${t}`]) w.push(`Per chiudere ${names.value[TEAMS.indexOf(t)]} doveva avere almeno un burraco`)
+    if (!f[`puliti_${t}`] && !f[`sporchi_${t}`] && !(usesSemi(props.partita) && f[`semipuliti_${t}`])) w.push(`Per chiudere ${names.value[TEAMS.indexOf(t)]} doveva avere almeno un burraco`)
   }
   return w
 })
@@ -43,7 +43,7 @@ const warnings = computed(() => {
 function submit() {
   const out = { numero: props.numero, chiusura: f.chiusura, note: (f.note ?? '').trim() }
   for (const t of TEAMS) {
-    for (const k of ['puliti', 'sporchi', 'tavola', 'mano', 'extra']) out[`${k}_${t}`] = Math.round(Number(f[`${k}_${t}`]) || 0)
+    for (const k of ['puliti', 'semipuliti', 'sporchi', 'tavola', 'mano', 'extra']) out[`${k}_${t}`] = Math.round(Number(f[`${k}_${t}`]) || 0)
     out[`pozzetto_${t}`] = !!f[`pozzetto_${t}`]
   }
   emit('save', out)
@@ -73,6 +73,7 @@ function submit() {
           <div class="group">
             <span class="glabel">Base</span>
             <Stepper v-model="f[`puliti_${t}`]" compact label="Burraco puliti" />
+            <Stepper v-if="usesSemi(partita)" v-model="f[`semipuliti_${t}`]" compact label="Semipuliti" />
             <Stepper v-model="f[`sporchi_${t}`]" compact label="Burraco sporchi" />
             <label class="check small">
               <input v-model="f[`pozzetto_${t}`]" type="checkbox" :disabled="f.chiusura === t" />

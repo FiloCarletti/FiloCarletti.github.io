@@ -28,7 +28,7 @@ export const game = reactive({
   summary: null, // riepilogo della mano appena finita
   hint: null, // { kind: 'draw', from } | { kind: 'meld' | 'attach', ids, meldId } | { kind: 'discard', id }
   flash: null, // { seat, text }: ultima azione di un bot
-  prefs: { speed: 'normale', sort: 'suit', mode: '1v1', target: 2005, opp: 'stratega', partner: 'stratega', ...readJSON(PREFS) },
+  prefs: { speed: 'normale', sort: 'suit', mode: '1v1', target: 2005, opp: 'stratega', partner: 'stratega', semi: false, ...readJSON(PREFS) },
 })
 
 export const savePrefs = () => writeJSON(PREFS, game.prefs)
@@ -44,7 +44,7 @@ const seatNames = {
   '2v2': ['Tu', 'Ovest', 'Compagno', 'Est'],
 }
 
-export function startMatch({ mode, target, opp, partner }) {
+export function startMatch({ mode, target, opp, partner, semi = false }) {
   const names = seatNames[mode]
   const seats = names.map((name, i) => {
     if (i === 0) return { name, bot: null }
@@ -52,7 +52,7 @@ export function startMatch({ mode, target, opp, partner }) {
     const S = strategyOf(id)
     return { name: mode === '1v1' ? S.name : `${name} · ${S.name}`, bot: id, emoji: S.emoji }
   })
-  game.match = newMatch({ mode, target, seats })
+  game.match = newMatch({ mode, target, seats, semi })
   game.match.opp = opp
   game.match.partner = mode === '2v2' ? partner : null
   game.selected = []

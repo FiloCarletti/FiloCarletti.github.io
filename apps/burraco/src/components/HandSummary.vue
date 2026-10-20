@@ -25,6 +25,7 @@ const rows = computed(() => [
   { label: 'Carte in tavola', v: sc.value.map((s) => s.tavola) },
   { label: 'Carte in mano', v: sc.value.map((s) => -s.mano) },
   { label: `Burraco puliti (${POINTS.pulito})`, v: sc.value.map((s) => s.puliti * POINTS.pulito), hint: sc.value.map((s) => s.puliti) },
+  ...(props.match.rules?.semi ? [{ label: `Burraco semipuliti (${POINTS.semipulito})`, v: sc.value.map((s) => (s.semipuliti ?? 0) * POINTS.semipulito), hint: sc.value.map((s) => s.semipuliti ?? 0) }] : []),
   { label: `Burraco sporchi (${POINTS.sporco})`, v: sc.value.map((s) => s.sporchi * POINTS.sporco), hint: sc.value.map((s) => s.sporchi) },
   { label: 'Chiusura', v: sc.value.map((s) => (s.chiusura ? POINTS.chiusura : 0)) },
   { label: 'Pozzetto non preso', v: sc.value.map((s) => (s.pozzetto ? 0 : -POINTS.pozzetto)) },

@@ -4,6 +4,8 @@
 // Una combinazione si riesamina da capo a ogni aggiunta: se una carta naturale prende il posto della matta,
 // la matta si sposta a un'estremità, come da regolamento.
 // Burraco = combinazione di almeno 7 carte: pulito senza matte, sporco con una matta.
+// Semipulito (regola facoltativa): almeno 7 carte naturali consecutive e poi la matta.
+// Ogni analisi riporta "run", la serie più lunga di carte naturali consecutive (senza la matta).
 import { isJoker, isWild, rankOf, suitOf } from './cards.js'
 
 export const BURRACO_LEN = 7
@@ -75,11 +77,13 @@ export function analyzeSeq(cards) {
         pos.push([to.wild, wildPos])
       }
       pos.sort((a, b) => a[1] - b[1])
+      const wi = w ? pos.findIndex((p) => p[0] === to.wild) : -1
       const res = {
         type: 'seq', suit, clean: !w, wild: to.wild, len: n,
         low: pos[0][1], high: pos.at(-1)[1], order: pos.map((p) => p[0]),
+        run: w ? Math.max(wi, n - wi - 1) : n,
       }
-      if (!best || (res.clean && !best.clean)) best = res
+      if (!best || (res.clean && !best.clean) || (res.clean === best.clean && res.run > best.run)) best = res
       if (best.clean) return best
     }
   }
@@ -98,7 +102,7 @@ export function analyzeSet(cards) {
   if (nat.some((c) => rankOf(c) !== r)) return null
   const order = [...nat].sort((a, b) => suitOf(a) - suitOf(b) || a - b)
   if (wild.length) order.push(wild[0])
-  return { type: 'set', rank: r, clean: !wild.length, wild: wild[0] ?? null, len: n, order }
+  return { type: 'set', rank: r, clean: !wild.length, wild: wild[0] ?? null, len: n, order, run: nat.length }
 }
 
 /** Esamina una combinazione (di tipo dato, oppure scala o tris). */
@@ -109,6 +113,13 @@ export function analyzeMeld(cards, type = null) {
 }
 
 export const isBurraco = (a) => a && a.len >= BURRACO_LEN
+
+/** Tipo di burraco: 'pulito', 'semipulito' (solo se la regola è attiva), 'sporco'; null se non è un burraco. */
+export function burracoKind(a, semi = false) {
+  if (!isBurraco(a)) return null
+  if (a.clean) return 'pulito'
+  return semi && a.run >= BURRACO_LEN ? 'semipulito' : 'sporco'
+}
 
 /** Matte in mano in ordine di preferenza d'uso: prima le pinelle, poi i jolly. */
 function wildsOf(hand) {

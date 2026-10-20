@@ -1,5 +1,6 @@
 // Torneo tra le strategie dei bot: girone all'italiana di partite 1 contro 1 (o 2 contro 2) fino all'obiettivo.
 //   node apps/burraco/tools/torneo.mjs [partite per coppia=40] [obiettivo=2005] [1v1|2v2]
+//   SEMI=1 node …  → con il burraco semipulito da 150
 // Stampa la classifica con percentuale di vittorie, Elo stimato (media 1500) e statistiche di gioco,
 // e controlla che le regole tengano (nessuna carta persa, nessun errore). Copia gli Elo in RATINGS (src/game/bots.js).
 import { makeRng, N_CARDS } from '../src/game/cards.js'
@@ -21,6 +22,7 @@ let totalHands = 0
 let tallone = 0
 let turns = 0
 let capped = 0
+let semi = 0
 
 function checkCards(st) {
   const all = [...st.stock, ...st.discard, ...st.hands.flat(), ...st.pozzetti.flat(), ...st.melds.flat().flatMap((m) => m.cards)]
@@ -30,7 +32,7 @@ function checkCards(st) {
 function playMatch(a, b) {
   const n = MODE === '2v2' ? 4 : 2
   const seats = Array.from({ length: n }, (_, i) => ({ name: `p${i}`, bot: i % 2 === 0 ? a : b }))
-  const m = newMatch({ mode: MODE, target: TARGET, seats, rng })
+  const m = newMatch({ mode: MODE, target: TARGET, seats, semi: process.env.SEMI === '1', rng })
   for (let h = 0; h < 60 && !m.over; h++) {
     const st = m.hand
     let guard = 0
@@ -50,6 +52,7 @@ function playMatch(a, b) {
       S.handPts += s.totale
       S.puliti += s.puliti
       S.sporchi += s.sporchi
+      semi += s.semipuliti
       if (s.chiusura) S.closures++
       if (!s.pozzetto) S.pozzMissed++
     })
@@ -98,7 +101,7 @@ for (let it = 0; it < 2000; it++) {
   for (const id of ids) elo[id] += 1500 - mean
 }
 
-console.log(`\n${MODE} a ${TARGET}, ${GAMES} partite per coppia, ${totalHands} mani (${(totalHands / (stats[ids[0]].games * ids.length / 2) || 0).toFixed(1)} per partita), ${(tallone / totalHands * 100).toFixed(0)}% finite per tallone, ${(turns / totalHands).toFixed(0)} turni a mano, ${capped} mani interrotte al limite di turni, ${((Date.now() - t0) / 1000).toFixed(1)} s\n`)
+console.log(`\n${MODE} a ${TARGET}, ${GAMES} partite per coppia, ${totalHands} mani (${(totalHands / (stats[ids[0]].games * ids.length / 2) || 0).toFixed(1)} per partita), ${(tallone / totalHands * 100).toFixed(0)}% finite per tallone, ${(turns / totalHands).toFixed(0)} turni a mano, ${capped} mani interrotte al limite di turni, ${semi} semipuliti, ${((Date.now() - t0) / 1000).toFixed(1)} s\n`)
 console.log('strategia       vinte   Elo   pt/mano  chiusure  puliti  sporchi  pozz.mancati')
 for (const id of [...ids].sort((x, y) => elo[y] - elo[x])) {
   const s = stats[id]
