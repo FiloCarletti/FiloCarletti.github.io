@@ -1,0 +1,17 @@
+{
+  "name": "Pasti",
+  "description": "Diario alimentare: Claude stima i valori nutrizionali dalle foto dei pasti e dalle descrizioni, la panoramica mostra carenze, eccessi e consigli rispetto ai tuoi obiettivi",
+  "icon": "🥗",
+  "dataMode": "personal",
+  "tables": [
+    "pasti_pasti",
+    "pasti_obiettivi",
+    "pasti_report"
+  ],
+  "tags": [
+    "salute",
+    "claude"
+  ],
+  "createdAt": "2026-11-20",
+  "updatedAt": "2026-11-20"
+}
