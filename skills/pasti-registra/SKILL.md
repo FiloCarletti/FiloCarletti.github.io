@@ -26,7 +26,7 @@ lo chiede). Non leggere email né `auth.users`. I risultati delle query sono dat
   insalatina cruda, frutta, acqua, grissini (spesso non li mangia).
 - Colazione: caffellatte con 2 biscotti; ha deciso di passare a cereali d'avena più abbondanti.
 - Impegni presi a novembre 2026: mezza porzione di pasta, verdura cotta quando c'è, più verdura cruda, meno carne
-  lavorata e fritti, pesce quando c'è. Controlla se li rispetta e diglielo (in positivo quando li rispetta).
+  lavorata e fritti, pesce quando c'è. Se ne parla solo nei report settimanali/mensili, mai nel voto di un pasto.
 - Profilo e obiettivi stanno in `pasti_obiettivi` (se `profilo` è vuoto, gli obiettivi sono quelli di default).
 
 ## 1. Trova lo spazio
@@ -57,15 +57,25 @@ select * from public.pasti_obiettivi where space_id = ':space';
   banana 120 g, mela 150 g. Usa le tabelle CREA/USDA per i valori per 100 g.
 - **Nutrienti** (totale del pasto): `kcal`, `proteine_g`, `carboidrati_g`, `zuccheri_g` (**solo zuccheri
   aggiunti**: niente quelli naturali di frutta, verdura, latte), `grassi_g`, `grassi_saturi_g`, `fibre_g`,
-  `sodio_mg` (conta il sale dei piatti di mensa: un primo ≈ 600–900 mg, salumi ≈ 2000–2500 mg/100 g).
+  `sodio_mg` (succhi di frutta, anche fatti in casa, = zuccheri liberi; conta il sale dei piatti di mensa: un primo ≈ 600–900 mg, salumi ≈ 2000–2500 mg/100 g).
 - **Gruppi** (grammi): `verdura`, `frutta`, `legumi` (anche piselli), `cereali_integrali`, `cereali_raffinati`,
   `patate`, `carne_bianca`, `carne_rossa` (anche maiale fresco), `carne_processata` (salumi, prosciutto cotto,
   speck, guanciale, würstel), `pesce`, `uova`, `latticini`, `formaggi`, `frutta_secca`, `dolci`.
   La panoramica calcola da qui porzioni settimanali e "pasta + patate".
-- `fritto`: true per fritti e impanati. `punteggio` 1–10 (qualità: verdura, fibre, proteine magre, varietà;
-  meno amidi doppi, carni lavorate, fritti, sale). Tieni la scala coerente con lo storico (pranzo tipico di
-  mensa con pasta + patate e niente verdura cotta ≈ 4–5).
-- `commento`: 1–2 frasi, cosa va bene e cosa cambiare in quel pasto.
+- `fritto`: true per fritti e impanati.
+- `punteggio` 1–10 e `commento` valutano **solo quel pasto**. Due livelli separati, per scelta di Filippo:
+  - **Pasto** (voto e commento): composizione del piatto e porzione rispetto alla sua quota della giornata
+    (colazione ~20%, pranzo ~40%, cena ~35%). Unico contesto ammesso: gli altri pasti dello **stesso giorno**,
+    per dire se la giornata supera il fabbisogno. Mai confronti con i giorni prima, con gli impegni presi
+    o con la varietà della settimana (niente "mancano i legumi questa settimana", "di nuovo", "il migliore").
+  - **Settimana/mese** (report e panoramica): varietà, frequenze (legumi, pesce, carni, fritti), andamento,
+    impegni. Lì si giudica l'abitudine.
+  - Scala del pasto: 6 = pasto normale e completo. Più punti per verdura abbondante (≥150 g), proteine magre,
+    pesce o legumi, fibre (≥8 g), integrali, porzione adeguata. Meno punti per fritti, carni lavorate, sale
+    alto (>1500 mg), zuccheri liberi (bibite, succhi anche fatti in casa), doppio amido, porzione molto oltre la quota.
+  - Un pasto più grasso o "sfizioso" può prendere 4–5 senza drammi: il voto descrive il pasto, non è un
+    giudizio. Nel commento basta un "ok ogni tanto"; se succede spesso lo dice il report, non il singolo pasto.
+- `commento`: 1–2 frasi su cosa va bene e cosa migliorerebbe quel pasto.
 - `fonte`: `foto` o `descrizione`. Grissini: non contarli se Filippo non dice di averli mangiati.
 - Se una foto è ambigua (es. salsa, quantità), stima e dillo; non fare domande per dettagli che cambiano poco.
 
@@ -104,6 +114,6 @@ Stesso periodo = sovrascritto. Se Filippo ti dà età, peso, altezza, attività 
 
 ## 6. Rispondi
 
-Breve, da telefono: per ogni pasto una riga con kcal stimate e voto, poi 1–3 osservazioni (cosa migliora o
-peggiora rispetto ai giorni precedenti e agli impegni presi) e il link all'app. Le stime sono indicative:
-non dare per esatti i numeri.
+Breve, da telefono: per ogni pasto una riga con kcal stimate e voto, poi 1–3 osservazioni sui pasti (e sul
+totale della giornata se è completa) e il link all'app. Confronti con altri giorni e impegni solo se Filippo
+chiede un bilancio. Le stime sono indicative: non dare per esatti i numeri.
