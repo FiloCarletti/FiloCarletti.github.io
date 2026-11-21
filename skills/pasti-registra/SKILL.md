@@ -40,6 +40,8 @@ il link (contiene `?space=<id>`).
 
 ## 2. Leggi il contesto
 
+Serve per gli altri pasti dello stesso giorno (fabbisogno) e per i report; non per il voto dei singoli pasti.
+
 ```sql
 select data, tipo, descrizione, kcal, punteggio, gruppi, fritto from public.pasti_pasti
  where space_id = ':space' and data >= current_date - 14 order by data desc, tipo;
@@ -55,9 +57,9 @@ select * from public.pasti_obiettivi where space_id = ':space';
 - **Alimenti**: elenca ogni componente con grammi *nel piatto* (cotti) stimati. Porzioni tipiche della mensa:
   primo 250–300 g cotti (≈ 100–120 g crudi), patate arrosto 180–250 g, insalatina 80–100 g con ~7 g d'olio,
   banana 120 g, mela 150 g. Usa le tabelle CREA/USDA per i valori per 100 g.
-- **Nutrienti** (totale del pasto): `kcal`, `proteine_g`, `carboidrati_g`, `zuccheri_g` (**solo zuccheri
-  aggiunti**: niente quelli naturali di frutta, verdura, latte), `grassi_g`, `grassi_saturi_g`, `fibre_g`,
-  `sodio_mg` (succhi di frutta, anche fatti in casa, = zuccheri liberi; conta il sale dei piatti di mensa: un primo ≈ 600–900 mg, salumi ≈ 2000–2500 mg/100 g).
+- **Nutrienti** (totale del pasto): `kcal`, `proteine_g`, `carboidrati_g`, `zuccheri_g` (**zuccheri
+  liberi**: aggiunti + quelli dei succhi, anche fatti in casa; niente quelli naturali di frutta intera, verdura,
+  latte), `grassi_g`, `grassi_saturi_g`, `fibre_g`, `sodio_mg` (conta il sale dei piatti di mensa: un primo ≈ 600–900 mg, salumi ≈ 2000–2500 mg/100 g).
 - **Gruppi** (grammi): `verdura`, `frutta`, `legumi` (anche piselli), `cereali_integrali`, `cereali_raffinati`,
   `patate`, `carne_bianca`, `carne_rossa` (anche maiale fresco), `carne_processata` (salumi, prosciutto cotto,
   speck, guanciale, würstel), `pesce`, `uova`, `latticini`, `formaggi`, `frutta_secca`, `dolci`.
@@ -90,7 +92,7 @@ select public.pasti_registra(':space', $dati$
     "gruppi": { "cereali_raffinati": 150, "verdura": 230, "carne_bianca": 130, "frutta": 120 },
     "kcal": 850, "proteine_g": 45, "carboidrati_g": 95, "zuccheri_g": 3, "grassi_g": 28,
     "grassi_saturi_g": 6, "fibre_g": 14, "sodio_mg": 1300, "fritto": false, "punteggio": 7,
-    "commento": "Ottimo: mezza pasta e verdura cotta al posto delle patate.", "fonte": "foto" }
+    "commento": "Ottimo: porzione di pasta giusta e verdura cotta al posto delle patate.", "fonte": "foto" }
 ] }
 $dati$::jsonb);
 ```
