@@ -43,7 +43,7 @@ export const NUTRIENTI = [
   { key: 'kcal', label: 'Energia', unit: 'kcal', dec: 0 },
   { key: 'proteine_g', label: 'Proteine', unit: 'g', dec: 0 },
   { key: 'carboidrati_g', label: 'Carboidrati', unit: 'g', dec: 0 },
-  { key: 'zuccheri_g', label: 'Zuccheri aggiunti', unit: 'g', dec: 0 },
+  { key: 'zuccheri_g', label: 'Zuccheri liberi', unit: 'g', dec: 0 },
   { key: 'grassi_g', label: 'Grassi', unit: 'g', dec: 0 },
   { key: 'grassi_saturi_g', label: 'Grassi saturi', unit: 'g', dec: 0 },
   { key: 'fibre_g', label: 'Fibre', unit: 'g', dec: 0 },
@@ -85,7 +85,7 @@ const CONSIGLI = {
   kcal: { basso: 'Pasti più completi o uno spuntino (yogurt, frutta secca).', alto: 'Riduci le porzioni di pasta e patate, che sono la parte più calorica del vassoio.' },
   proteine: { basso: 'Aggiungi legumi, uova, yogurt greco o pesce.' },
   fibre: { basso: 'Più verdura, legumi e cereali integrali al posto di quelli raffinati.' },
-  zuccheri: { alto: 'Meno dolci, biscotti, cereali zuccherati e bevande dolci.' },
+  zuccheri: { alto: 'Meno dolci, biscotti, cereali zuccherati, bibite e succhi (anche fatti in casa).' },
   saturi: { alto: 'Meno fritti, salumi, formaggi e carni grasse; olio d\'oliva a crudo al loro posto.' },
   sodio: { alto: 'Meno salumi, formaggi stagionati, grissini e piatti pronti.' },
   verdura: { basso: 'Contorno di verdura cotta a ogni pasto principale e più insalata.' },
@@ -170,7 +170,7 @@ export function analizza(pasti, ob = DEFAULT_OBIETTIVI, dal = null, al = null) {
     add('kcal', 'giorno', 'Energia', n.kcal, ob.kcal, 'range', 'kcal', 'kcal')
     add('proteine', 'giorno', 'Proteine', n.proteine_g, ob.proteine_g, 'min', 'g', 'proteine')
     add('fibre', 'giorno', 'Fibre', n.fibre_g, ob.fibre_min_g, 'min', 'g', 'fibre')
-    add('zuccheri', 'giorno', 'Zuccheri aggiunti', n.zuccheri_g, ob.zuccheri_max_g, 'max', 'g', 'zuccheri')
+    add('zuccheri', 'giorno', 'Zuccheri liberi', n.zuccheri_g, ob.zuccheri_max_g, 'max', 'g', 'zuccheri')
     add('saturi', 'giorno', 'Grassi saturi', n.grassi_saturi_g, ob.saturi_max_g, 'max', 'g', 'saturi')
     add('sodio', 'giorno', 'Sodio', n.sodio_mg, ob.sodio_max_mg, 'max', 'mg', 'sodio')
     add('verdura', 'giorno', 'Verdura', giornata.gruppi.verdura, ob.verdura_min_g, 'min', 'g', 'verdura')

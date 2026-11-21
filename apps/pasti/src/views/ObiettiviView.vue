@@ -12,7 +12,7 @@ const GIORNO = [
   { key: 'kcal', label: 'Energia', unit: 'kcal', hint: 'circa' },
   { key: 'proteine_g', label: 'Proteine', unit: 'g', hint: 'almeno' },
   { key: 'fibre_min_g', label: 'Fibre', unit: 'g', hint: 'almeno' },
-  { key: 'zuccheri_max_g', label: 'Zuccheri aggiunti', unit: 'g', hint: 'al massimo' },
+  { key: 'zuccheri_max_g', label: 'Zuccheri liberi', unit: 'g', hint: 'al massimo' },
   { key: 'saturi_max_g', label: 'Grassi saturi', unit: 'g', hint: 'al massimo' },
   { key: 'sodio_max_mg', label: 'Sodio', unit: 'mg', hint: 'al massimo' },
   { key: 'verdura_min_g', label: 'Verdura', unit: 'g', hint: 'almeno' },
